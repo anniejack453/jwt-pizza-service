@@ -138,6 +138,59 @@ describe("register", () => {
   });
 });
 
+describe("logout", () => {
+  test("successful logout", async () => {
+    // First, get a valid token by logging in
+    const loginRes = await request(app)
+      .put("/api/auth")
+      .send({ email: "admin@test.com", password: "admin123" });
+    const token = loginRes.body.token;
+
+    // Logout with valid token
+    const logoutRes = await request(app)
+      .delete("/api/auth")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(logoutRes.status).toBe(200);
+    expect(logoutRes.body.message).toBe("logout successful");
+  });
+
+  test("logout without token", async () => {
+    const logoutRes = await request(app).delete("/api/auth");
+    expect(logoutRes.status).toBe(401);
+    expect(logoutRes.body.message).toBe("unauthorized");
+  });
+
+  test("logout with invalid token", async () => {
+    const logoutRes = await request(app)
+      .delete("/api/auth")
+      .set("Authorization", `Bearer invalidtoken123`);
+    expect(logoutRes.status).toBe(401);
+    expect(logoutRes.body.message).toBe("unauthorized");
+  });
+
+  test("token is invalid after logout", async () => {
+    // Login
+    const loginRes = await request(app)
+      .put("/api/auth")
+      .send({ email: "diner@test.com", password: "diner123" });
+    const token = loginRes.body.token;
+
+    // Logout
+    await request(app)
+      .delete("/api/auth")
+      .set("Authorization", `Bearer ${token}`);
+
+    // Try to use the token after logout (should fail)
+    // This assumes there's a protected endpoint to test with
+    const protectedRes = await request(app)
+      .delete("/api/auth")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(protectedRes.status).toBe(401);
+  });
+});
+
 function expectValidJwt(potentialJwt) {
   expect(potentialJwt).toMatch(
     /^[a-zA-Z0-9\-_]*\.[a-zA-Z0-9\-_]*\.[a-zA-Z0-9\-_]*$/,
