@@ -74,9 +74,21 @@ authRouter.put(
   '/',
   asyncHandler(async (req, res) => {
     const { email, password } = req.body;
-    const user = await DB.getUser(email, password);
-    const auth = await setAuth(user);
-    res.json({ user: user, token: auth });
+    if (!email || !password) {
+      if (!email) {
+        return res.status(400).json({ message: 'Email is required' });
+      }
+      if (!password) {
+        return res.status(400).json({ message: 'Password is required' });
+      }
+    }
+    try {
+      const user = await DB.getUser(email, password);
+      const auth = await setAuth(user);
+      res.json({ user: user, token: auth });
+    } catch (err) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
   })
 );
 
