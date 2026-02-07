@@ -85,7 +85,7 @@ describe("register", () => {
   test("successful registration", async () => {
     const newUser = {
       name: "New User",
-      email: "newuser@test.com",
+      email: Math.random().toString(36).substring(2, 12) + "@test.com",
       password: "password123",
     };
     const registerRes = await request(app).post("/api/auth").send(newUser);
@@ -125,9 +125,10 @@ describe("register", () => {
   });
 
   test("duplicate email", async () => {
+    const email = Math.random().toString(36).substring(2, 12) + "@test.com";
     const user = {
       name: "User",
-      email: "duplicate@test.com",
+      email: email,
       password: "password",
     };
     // Register first time

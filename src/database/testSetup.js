@@ -11,6 +11,23 @@ async function initializeTestDatabase() {
     // Wait for DB to initialize
     await DB.initialized;
 
+    // Check if test database is already initialized
+    try {
+      const adminUser = await DB.getUser("admin@test.com");
+      const dinerUser = await DB.getUser("diner@test.com");
+      const franchiseeUser = await DB.getUser("franchisee@test.com");
+
+      // If all users exist, database is already initialized
+      console.log("Test database already initialized");
+      return {
+        admin: adminUser,
+        diner: dinerUser,
+        franchisee: franchiseeUser,
+      };
+    } catch (err) {
+      // Users don't exist, proceed with full initialization
+    }
+
     // Clear existing data by deleting in correct order (respecting foreign keys)
     const connection = await DB.getConnection();
     try {
@@ -113,7 +130,6 @@ async function initializeTestDatabase() {
     }
 
     const franchise = franchiseRes.body.franchise || franchiseRes.body;
-    console.log("Franchise created:", franchise);
 
     // Create store
     const storeRes = await request(app)
@@ -131,7 +147,6 @@ async function initializeTestDatabase() {
     }
 
     const store = storeRes.body.store || storeRes.body;
-    console.log("Store created:", store);
 
     // Get menu and create order
     const menu = await DB.getMenu();
@@ -152,17 +167,6 @@ async function initializeTestDatabase() {
         ],
       });
     }
-
-    console.log("Test database initialized successfully!");
-    console.log({
-      admin: { id: admin.id, email: admin.email },
-      diner: { id: diner.id, email: diner.email },
-      franchisee: { id: franchiseeUser.id, email: franchiseeUser.email },
-      franchise: { id: franchise.id, name: franchise.name },
-      store: { id: store.id, name: store.name },
-      menuItems: menuItems.length,
-      order: order ? { id: order.id, items: order.items } : null,
-    });
 
     return {
       admin,
