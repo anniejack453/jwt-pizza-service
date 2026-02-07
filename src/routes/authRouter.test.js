@@ -14,67 +14,128 @@ beforeAll(async () => {
   expectValidJwt(testUserAuthToken);
 });
 
-test("login", async () => {
-  const loginRes = await request(app).put("/api/auth").send(testUser);
-  expect(loginRes.status).toBe(200);
-  expectValidJwt(loginRes.body.token);
+describe("login", () => {
+  test("login user", async () => {
+    const loginRes = await request(app).put("/api/auth").send(testUser);
+    expect(loginRes.status).toBe(200);
+    expectValidJwt(loginRes.body.token);
 
-  const expectedUser = { ...testUser, roles: [{ role: "diner" }] };
-  delete expectedUser.password;
-  expect(loginRes.body.user).toMatchObject(expectedUser);
+    const expectedUser = { ...testUser, roles: [{ role: "diner" }] };
+    delete expectedUser.password;
+    expect(loginRes.body.user).toMatchObject(expectedUser);
+  });
+
+  test("invalid credentials", async () => {
+    const invalidUser = { email: "t@jwt.com", password: "wrongpassword" };
+    const loginRes = await request(app).put("/api/auth").send(invalidUser);
+    expect(loginRes.status).toBe(401);
+    expect(loginRes.body.message).toBe("Invalid email or password");
+  });
+
+  test("missing email", async () => {
+    const loginRes = await request(app)
+      .put("/api/auth")
+      .send({ password: "a" });
+    expect(loginRes.status).toBe(400);
+    expect(loginRes.body.message).toBe("Email is required");
+  });
+
+  test("missing password", async () => {
+    const loginRes = await request(app)
+      .put("/api/auth")
+      .send({ email: "reg@test.com" });
+    expect(loginRes.status).toBe(400);
+    expect(loginRes.body.message).toBe("Password is required");
+  });
+
+  test("user not found", async () => {
+    const nonExistentUser = {
+      email: "nonexistent@test.com",
+      password: "password",
+    };
+    const loginRes = await request(app).put("/api/auth").send(nonExistentUser);
+    expect(loginRes.status).toBe(401);
+    expect(loginRes.body.message).toBe("Invalid email or password");
+  });
+
+  test("successful login with admin role", async () => {
+    const adminUser = {
+      name: "Admin User",
+      email: "admin@test.com",
+      password: "admin123",
+    };
+    const loginRes = await request(app)
+      .put("/api/auth")
+      .send({ email: "admin@test.com", password: "admin123" });
+    expect(loginRes.status).toBe(200);
+    expectValidJwt(loginRes.body.token);
+    expect(loginRes.body.user.roles).toContainEqual({ role: "admin" });
+  });
+
+  test("expired token", async () => {
+    const expiredToken = "expiredTokenExample"; // Mock an expired token
+    const loginRes = await request(app)
+      .put("/api/auth")
+      .set("Authorization", `Bearer ${expiredToken}`);
+    expect(loginRes.status).toBe(400);
+  });
 });
 
-test("invalid credentials", async () => {
-  const invalidUser = { email: "t@jwt.com", password: "wrongpassword" };
-  const loginRes = await request(app).put("/api/auth").send(invalidUser);
-  expect(loginRes.status).toBe(401);
-  expect(loginRes.body.message).toBe("Invalid email or password");
-});
+describe("register", () => {
+  test("successful registration", async () => {
+    const newUser = {
+      name: "New User",
+      email: "newuser@test.com",
+      password: "password123",
+    };
+    const registerRes = await request(app).post("/api/auth").send(newUser);
+    expect(registerRes.status).toBe(200);
+    expectValidJwt(registerRes.body.token);
+    expect(registerRes.body.user.name).toBe(newUser.name);
+    expect(registerRes.body.user.email).toBe(newUser.email);
+    expect(registerRes.body.user.roles).toContainEqual({ role: "diner" });
+    expect(registerRes.body.user.password).toBeUndefined(); // password should not be returned
+  });
 
-test("missing email", async () => {
-  const loginRes = await request(app).put("/api/auth").send({ password: "a" });
-  expect(loginRes.status).toBe(400);
-  expect(loginRes.body.message).toBe("Email is required");
-});
+  test("missing name", async () => {
+    const invalidUser = { email: "test@test.com", password: "password" };
+    const registerRes = await request(app).post("/api/auth").send(invalidUser);
+    expect(registerRes.status).toBe(400);
+    expect(registerRes.body.message).toBe(
+      "name, email, and password are required",
+    );
+  });
 
-test("missing password", async () => {
-  const loginRes = await request(app)
-    .put("/api/auth")
-    .send({ email: "reg@test.com" });
-  expect(loginRes.status).toBe(400);
-  expect(loginRes.body.message).toBe("Password is required");
-});
+  test("missing email", async () => {
+    const invalidUser = { name: "Test User", password: "password" };
+    const registerRes = await request(app).post("/api/auth").send(invalidUser);
+    expect(registerRes.status).toBe(400);
+    expect(registerRes.body.message).toBe(
+      "name, email, and password are required",
+    );
+  });
 
-test("user not found", async () => {
-  const nonExistentUser = {
-    email: "nonexistent@test.com",
-    password: "password",
-  };
-  const loginRes = await request(app).put("/api/auth").send(nonExistentUser);
-  expect(loginRes.status).toBe(401);
-  expect(loginRes.body.message).toBe("Invalid email or password");
-});
+  test("missing password", async () => {
+    const invalidUser = { name: "Test User", email: "test@test.com" };
+    const registerRes = await request(app).post("/api/auth").send(invalidUser);
+    expect(registerRes.status).toBe(400);
+    expect(registerRes.body.message).toBe(
+      "name, email, and password are required",
+    );
+  });
 
-test("successful login with admin role", async () => {
-  const adminUser = {
-    name: "Admin User",
-    email: "admin@test.com",
-    password: "admin123",
-  };
-  const loginRes = await request(app)
-    .put("/api/auth")
-    .send({ email: "admin@test.com", password: "admin123" });
-  expect(loginRes.status).toBe(200);
-  expectValidJwt(loginRes.body.token);
-  expect(loginRes.body.user.roles).toContainEqual({ role: "admin" });
-});
-
-test("expired token", async () => {
-  const expiredToken = "expiredTokenExample"; // Mock an expired token
-  const loginRes = await request(app)
-    .put("/api/auth")
-    .set("Authorization", `Bearer ${expiredToken}`);
-  expect(loginRes.status).toBe(400);
+  test("duplicate email", async () => {
+    const user = {
+      name: "User",
+      email: "duplicate@test.com",
+      password: "password",
+    };
+    // Register first time
+    await request(app).post("/api/auth").send(user);
+    // Try to register with same email
+    const registerRes = await request(app).post("/api/auth").send(user);
+    expect(registerRes.status).toBe(409);
+  });
 });
 
 function expectValidJwt(potentialJwt) {
