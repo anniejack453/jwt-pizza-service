@@ -2,16 +2,30 @@ const request = require("supertest");
 const app = require("../service");
 
 const { initializeTestDatabase } = require("../database/testSetup.js");
+const { DB } = require("../database/database.js");
 
+const testDbName = `pizza_test_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 const testUser = { name: "pizza diner", email: "reg@test.com", password: "a" };
 let testUserAuthToken;
 
 beforeAll(async () => {
-  await initializeTestDatabase();
+  // Set the test database for this test run
+  process.env.TEST_DB_NAME = testDbName;
+  await initializeTestDatabase(testDbName);
   testUser.email = Math.random().toString(36).substring(2, 12) + "@test.com";
   const registerRes = await request(app).post("/api/auth").send(testUser);
   testUserAuthToken = registerRes.body.token;
   expectValidJwt(testUserAuthToken);
+});
+
+afterAll(async () => {
+  // Drop the test database after all tests
+  const connection = await DB.getConnection();
+  try {
+    await connection.query(`DROP DATABASE IF EXISTS ${testDbName}`);
+  } finally {
+    connection.end();
+  }
 });
 
 describe("create franchise", () => {

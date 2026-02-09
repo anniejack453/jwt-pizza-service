@@ -2,6 +2,7 @@
   "testEnvironment": "node",
   "collectCoverage": true,
   "coverageReporters": ["json-summary", "text"],
+  "coveragePathIgnorePatterns": ["/node_modules/", "testSetup.js", ".test.js"],
   "coverageThreshold": {
     "global": {
       "lines": 80

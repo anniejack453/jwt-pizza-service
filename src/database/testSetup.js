@@ -6,8 +6,13 @@ const app = require("../service.js");
  * Initializes the test database with sample data
  * Creates: 1 admin, 1 diner, 1 franchisee, 1 franchise, 1 store, menu items, and an order
  */
-async function initializeTestDatabase() {
+async function initializeTestDatabase(dbName) {
   try {
+    // Set the test database name in environment if provided
+    if (dbName) {
+      process.env.TEST_DB_NAME = dbName;
+    }
+
     // Wait for DB to initialize
     await DB.initialized;
 
