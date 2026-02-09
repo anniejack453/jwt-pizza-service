@@ -4,12 +4,13 @@ const app = require("../service");
 const { initializeTestDatabase } = require("../database/testSetup.js");
 const { DB } = require("../database/database.js");
 
-const testDbName = `pizza_test_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 const testUser = { name: "pizza diner", email: "reg@test.com", password: "a" };
 let testUserAuthToken;
+let testDbName;
 
 beforeAll(async () => {
-  // Set the test database for this test run
+  // Generate unique database name at runtime
+  testDbName = `pizza_test_${Date.now()}_${Math.random().toString(36).substring(7)}`;
   process.env.TEST_DB_NAME = testDbName;
   await initializeTestDatabase(testDbName);
   testUser.email = Math.random().toString(36).substring(2, 12) + "@test.com";
