@@ -120,6 +120,65 @@ describe("add menu item", () => {
   });
 });
 
+describe("get orders", () => {
+  let dinerToken;
+  let dinerId;
+
+  beforeAll(async () => {
+    const dinerLoginRes = await request(app)
+      .put("/api/auth")
+      .send({ email: "diner@test.com", password: "diner123" });
+    dinerToken = dinerLoginRes.body.token;
+    dinerId = dinerLoginRes.body.user.id;
+    expectValidJwt(dinerToken);
+  });
+
+  test("requires authentication", async () => {
+    const res = await request(app).get("/api/order");
+
+    expect(res.status).toBe(401);
+    expect(res.body.message).toBe("unauthorized");
+  });
+
+  test("returns orders for authenticated diner", async () => {
+    const res = await request(app)
+      .get("/api/order")
+      .set("Authorization", `Bearer ${dinerToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("dinerId", dinerId);
+    expect(res.body).toHaveProperty("orders");
+    expect(res.body).toHaveProperty("page");
+    expect(Array.isArray(res.body.orders)).toBe(true);
+    expect(res.body.orders.length).toBeGreaterThan(0);
+  });
+
+  test("orders have expected structure", async () => {
+    const res = await request(app)
+      .get("/api/order")
+      .set("Authorization", `Bearer ${dinerToken}`);
+
+    expect(res.status).toBe(200);
+    if (res.body.orders.length > 0) {
+      const order = res.body.orders[0];
+      expect(order).toHaveProperty("id");
+      expect(order).toHaveProperty("franchiseId");
+      expect(order).toHaveProperty("storeId");
+      expect(order).toHaveProperty("date");
+      expect(order).toHaveProperty("items");
+      expect(Array.isArray(order.items)).toBe(true);
+
+      if (order.items.length > 0) {
+        const item = order.items[0];
+        expect(item).toHaveProperty("id");
+        expect(item).toHaveProperty("menuId");
+        expect(item).toHaveProperty("description");
+        expect(item).toHaveProperty("price");
+      }
+    }
+  });
+});
+
 function expectValidJwt(potentialJwt) {
   expect(potentialJwt).toMatch(
     /^[a-zA-Z0-9\-_]*\.[a-zA-Z0-9\-_]*\.[a-zA-Z0-9\-_]*$/,
