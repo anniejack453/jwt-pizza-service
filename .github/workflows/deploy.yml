@@ -40,7 +40,7 @@ jobs:
       - name: Write config file
         run: |
           echo "module.exports = {
-            jwtSecret: '${{ secrets.JWT_SECRET }}',
+            jwtSecret: 'placeholder-secret',
             db: {
               connection: {
                 host: '127.0.0.1',
@@ -53,11 +53,14 @@ jobs:
             },
             factory: {
               url: 'https://pizza-factory.cs329.click',
-              apiKey: '${{ secrets.FACTORY_API_KEY }}',
+              apiKey: 'placeholder-key',
             },
           };" > src/config.js
 
       - name: Tests
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
         run: npm test
 
       - name: set version
