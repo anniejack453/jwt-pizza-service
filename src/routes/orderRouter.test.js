@@ -179,6 +179,113 @@ describe("get orders", () => {
   });
 });
 
+describe("create order", () => {
+  let dinerToken;
+  let franchiseId;
+  let storeId;
+  let menuId;
+  let originalFetch;
+
+  beforeAll(async () => {
+    const dinerLoginRes = await request(app)
+      .put("/api/auth")
+      .send({ email: "diner@test.com", password: "diner123" });
+    dinerToken = dinerLoginRes.body.token;
+    expectValidJwt(dinerToken);
+
+    const connection = await DB.getConnection();
+    try {
+      const [franchises] = await connection.query(
+        `SELECT id FROM franchise LIMIT 1`,
+      );
+      const [stores] = await connection.query(
+        `SELECT id, franchiseId FROM store LIMIT 1`,
+      );
+      const menu = await DB.getMenu();
+
+      franchiseId = franchises[0].id;
+      storeId = stores[0].id;
+      menuId = menu[0].id;
+    } finally {
+      connection.end();
+    }
+
+    originalFetch = global.fetch;
+  });
+
+  afterEach(() => {
+    if (global.fetch && global.fetch.mockRestore) {
+      global.fetch.mockRestore();
+    }
+  });
+
+  afterAll(() => {
+    global.fetch = originalFetch;
+  });
+
+  test("requires authentication", async () => {
+    const res = await request(app)
+      .post("/api/order")
+      .send({
+        franchiseId,
+        storeId,
+        items: [{ menuId, description: "Veggie", price: 0.0038 }],
+      });
+
+    expect(res.status).toBe(401);
+    expect(res.body.message).toBe("unauthorized");
+  });
+
+  test("creates an order and returns factory response", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        reportUrl: "https://factory.example/report/123",
+        jwt: "factory.jwt.token",
+      }),
+    });
+
+    const res = await request(app)
+      .post("/api/order")
+      .set("Authorization", `Bearer ${dinerToken}`)
+      .send({
+        franchiseId,
+        storeId,
+        items: [{ menuId, description: "Veggie", price: 0.0038 }],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("order");
+    expect(res.body).toHaveProperty("followLinkToEndChaos");
+    expect(res.body).toHaveProperty("jwt");
+    expect(res.body.order).toHaveProperty("id");
+    expect(res.body.order).toHaveProperty("items");
+    expect(Array.isArray(res.body.order.items)).toBe(true);
+  });
+
+  test("returns 500 when factory fails", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({
+        reportUrl: "https://factory.example/report/failed",
+      }),
+    });
+
+    const res = await request(app)
+      .post("/api/order")
+      .set("Authorization", `Bearer ${dinerToken}`)
+      .send({
+        franchiseId,
+        storeId,
+        items: [{ menuId, description: "Veggie", price: 0.0038 }],
+      });
+
+    expect(res.status).toBe(500);
+    expect(res.body.message).toBe("Failed to fulfill order at factory");
+    expect(res.body.followLinkToEndChaos).toBeDefined();
+  });
+});
+
 function expectValidJwt(potentialJwt) {
   expect(potentialJwt).toMatch(
     /^[a-zA-Z0-9\-_]*\.[a-zA-Z0-9\-_]*\.[a-zA-Z0-9\-_]*$/,
