@@ -73,7 +73,6 @@ describe("update user", () => {
   let userId;
   let userToken;
   let otherUserId;
-  let otherUserToken;
   let adminToken;
 
   beforeAll(async () => {
@@ -90,7 +89,6 @@ describe("update user", () => {
       .post("/api/auth")
       .send({ name: "Other User", email: otherEmail, password: "pass" });
     otherUserId = otherRes.body.user.id;
-    otherUserToken = otherRes.body.token;
 
     // Get admin token
     const adminLoginRes = await request(app)

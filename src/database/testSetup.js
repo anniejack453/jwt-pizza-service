@@ -29,7 +29,7 @@ async function initializeTestDatabase(dbName) {
         diner: dinerUser,
         franchisee: franchiseeUser,
       };
-    } catch (err) {
+    } catch {
       // Users don't exist, proceed with full initialization
     }
 

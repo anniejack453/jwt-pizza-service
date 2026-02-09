@@ -87,7 +87,7 @@ authRouter.post(
     try {
       await DB.getUser(email);
       return res.status(409).json({ message: "Email already in use" });
-    } catch (err) {
+    } catch {
       // User doesn't exist, continue with registration
     }
 
@@ -119,7 +119,7 @@ authRouter.put(
       const user = await DB.getUser(email, password);
       const auth = await setAuth(user);
       res.json({ user: user, token: auth });
-    } catch (err) {
+    } catch {
       return res.status(401).json({ message: "Invalid email or password" });
     }
   }),

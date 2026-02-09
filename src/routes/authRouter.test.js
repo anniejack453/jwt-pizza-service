@@ -73,11 +73,6 @@ describe("login", () => {
   });
 
   test("successful login with admin role", async () => {
-    const adminUser = {
-      name: "Admin User",
-      email: "admin@test.com",
-      password: "admin123",
-    };
     const loginRes = await request(app)
       .put("/api/auth")
       .send({ email: "admin@test.com", password: "admin123" });
