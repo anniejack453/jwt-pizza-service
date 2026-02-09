@@ -291,6 +291,110 @@ describe("list all franchises", () => {
   });
 });
 
+describe("create store", () => {
+  let franchiseId;
+  let franchiseeToken;
+  let adminToken;
+
+  beforeAll(async () => {
+    // Get admin token
+    const adminLoginRes = await request(app)
+      .put("/api/auth")
+      .send({ email: "admin@test.com", password: "admin123" });
+    adminToken = adminLoginRes.body.token;
+
+    // Get franchisee token
+    const franchiseeLoginRes = await request(app)
+      .put("/api/auth")
+      .send({ email: "franchisee@test.com", password: "franchisee123" });
+    franchiseeToken = franchiseeLoginRes.body.token;
+
+    // Create a franchise for testing
+    const franchiseRes = await request(app)
+      .post("/api/franchise")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        name: `Test Franchise ${Math.random().toString(36).substring(7)}`,
+        admins: [{ email: "franchisee@test.com" }],
+      });
+    franchiseId = franchiseRes.body.id;
+  });
+
+  test("franchisee can create a store in their franchise", async () => {
+    const storeData = {
+      name: `Store ${Math.random().toString(36).substring(7)}`,
+    };
+
+    const createRes = await request(app)
+      .post(`/api/franchise/${franchiseId}/store`)
+      .set("Authorization", `Bearer ${franchiseeToken}`)
+      .send(storeData);
+
+    expect(createRes.status).toBe(200);
+    expect(createRes.body.name).toBe(storeData.name);
+    expect(createRes.body.id).toBeDefined();
+    expect(createRes.body.totalRevenue).toBe(0);
+  });
+
+  test("admin can create a store in any franchise", async () => {
+    const storeData = {
+      name: `Store ${Math.random().toString(36).substring(7)}`,
+    };
+
+    const createRes = await request(app)
+      .post(`/api/franchise/${franchiseId}/store`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send(storeData);
+
+    expect(createRes.status).toBe(200);
+    expect(createRes.body.name).toBe(storeData.name);
+    expect(createRes.body.id).toBeDefined();
+    expect(createRes.body.totalRevenue).toBe(0);
+  });
+
+  test("cannot create store without authentication", async () => {
+    const storeData = {
+      name: "Store",
+    };
+
+    const createRes = await request(app)
+      .post(`/api/franchise/${franchiseId}/store`)
+      .send(storeData);
+
+    expect(createRes.status).toBe(401);
+    expect(createRes.body.message).toBe("unauthorized");
+  });
+
+  test("cannot create store if not franchise admin or system admin", async () => {
+    // Use testUser (diner) who is not a franchise admin
+    const storeData = {
+      name: "Store",
+    };
+
+    const createRes = await request(app)
+      .post(`/api/franchise/${franchiseId}/store`)
+      .set("Authorization", `Bearer ${testUserAuthToken}`)
+      .send(storeData);
+
+    expect(createRes.status).toBe(403);
+    expect(createRes.body.message).toBe("unable to create a store");
+  });
+
+  test("cannot create store for non-existent franchise", async () => {
+    const storeData = {
+      name: "Store",
+    };
+
+    const createRes = await request(app)
+      .post(`/api/franchise/99999/store`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send(storeData);
+
+    expect(createRes.status).toBe(403);
+    expect(createRes.body.message).toBe("unable to create a store");
+  });
+});
+
 function expectValidJwt(potentialJwt) {
   expect(potentialJwt).toMatch(
     /^[a-zA-Z0-9\-_]*\.[a-zA-Z0-9\-_]*\.[a-zA-Z0-9\-_]*$/,

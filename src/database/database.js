@@ -345,6 +345,17 @@ class DB {
   async getFranchise(franchise) {
     const connection = await this.getConnection();
     try {
+      // Verify the franchise exists
+      const franchiseCheck = await this.query(
+        connection,
+        `SELECT id, name FROM franchise WHERE id=?`,
+        [franchise.id],
+      );
+
+      if (franchiseCheck.length === 0) {
+        return null;
+      }
+
       franchise.admins = await this.query(
         connection,
         `SELECT u.id, u.name, u.email FROM userRole AS ur JOIN user AS u ON u.id=ur.userId WHERE ur.objectId=? AND ur.role='franchisee'`,
@@ -371,7 +382,12 @@ class DB {
         `INSERT INTO store (franchiseId, name) VALUES (?, ?)`,
         [franchiseId, store.name],
       );
-      return { id: insertResult.insertId, franchiseId, name: store.name };
+      return {
+        id: insertResult.insertId,
+        franchiseId,
+        name: store.name,
+        totalRevenue: 0,
+      };
     } finally {
       connection.end();
     }
