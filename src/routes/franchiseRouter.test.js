@@ -201,6 +201,96 @@ describe("list user franchises", () => {
   });
 });
 
+describe("list all franchises", () => {
+  test("list all franchises", async () => {
+    const listRes = await request(app).get("/api/franchise");
+
+    expect(listRes.status).toBe(200);
+    expect(listRes.body).toHaveProperty("franchises");
+    expect(listRes.body).toHaveProperty("more");
+    expect(Array.isArray(listRes.body.franchises)).toBe(true);
+    expect(typeof listRes.body.more).toBe("boolean");
+    // Should have at least the test franchise
+    expect(listRes.body.franchises.length).toBeGreaterThan(0);
+  });
+
+  test("list franchises with pagination", async () => {
+    const listRes = await request(app)
+      .get("/api/franchise")
+      .query({ page: 0, limit: 1 });
+
+    expect(listRes.status).toBe(200);
+    expect(listRes.body.franchises.length).toBeLessThanOrEqual(1);
+    expect(listRes.body).toHaveProperty("more");
+  });
+
+  test("list franchises with name filter", async () => {
+    const listRes = await request(app)
+      .get("/api/franchise")
+      .query({ name: "Test" });
+
+    expect(listRes.status).toBe(200);
+    expect(Array.isArray(listRes.body.franchises)).toBe(true);
+    // All returned franchises should match the filter
+    listRes.body.franchises.forEach((franchise) => {
+      expect(franchise.name.toLowerCase()).toContain("test");
+    });
+  });
+
+  test("list franchises with non-matching name filter", async () => {
+    const listRes = await request(app)
+      .get("/api/franchise")
+      .query({ name: "NonexistentFranchise12345" });
+
+    expect(listRes.status).toBe(200);
+    expect(listRes.body.franchises.length).toBe(0);
+    expect(listRes.body.more).toBe(false);
+  });
+
+  test("franchise has correct structure", async () => {
+    const listRes = await request(app).get("/api/franchise");
+
+    expect(listRes.status).toBe(200);
+    if (listRes.body.franchises.length > 0) {
+      const franchise = listRes.body.franchises[0];
+      expect(franchise).toHaveProperty("id");
+      expect(franchise).toHaveProperty("name");
+      expect(franchise).toHaveProperty("stores");
+      expect(Array.isArray(franchise.stores)).toBe(true);
+    }
+  });
+
+  test("franchise has correct structure for admin", async () => {
+    const adminLoginRes = await request(app)
+      .put("/api/auth")
+      .send({ email: "admin@test.com", password: "admin123" });
+    const adminToken = adminLoginRes.body.token;
+
+    const listRes = await request(app)
+      .get("/api/franchise")
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(listRes.status).toBe(200);
+    if (listRes.body.franchises.length > 0) {
+      const franchise = listRes.body.franchises[0];
+      expect(franchise).toHaveProperty("id");
+      expect(franchise).toHaveProperty("name");
+      expect(franchise).toHaveProperty("admins");
+      expect(franchise).toHaveProperty("stores");
+      expect(Array.isArray(franchise.admins)).toBe(true);
+      expect(Array.isArray(franchise.stores)).toBe(true);
+    }
+  });
+
+  test("list franchises does not require authentication", async () => {
+    const listRes = await request(app).get("/api/franchise");
+
+    expect(listRes.status).toBe(200);
+    // Should succeed even without a token
+    expect(listRes.body).toHaveProperty("franchises");
+  });
+});
+
 function expectValidJwt(potentialJwt) {
   expect(potentialJwt).toMatch(
     /^[a-zA-Z0-9\-_]*\.[a-zA-Z0-9\-_]*\.[a-zA-Z0-9\-_]*$/,
