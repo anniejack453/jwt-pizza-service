@@ -122,6 +122,85 @@ describe("create franchise", () => {
   });
 });
 
+describe("list user franchises", () => {
+  test("user can list their own franchises", async () => {
+    // Get franchisee token and their ID
+    const franchiseeLoginRes = await request(app)
+      .put("/api/auth")
+      .send({ email: "franchisee@test.com", password: "franchisee123" });
+    const franchiseeToken = franchiseeLoginRes.body.token;
+    const franchiseeId = franchiseeLoginRes.body.user.id;
+
+    const listRes = await request(app)
+      .get(`/api/franchise/${franchiseeId}`)
+      .set("Authorization", `Bearer ${franchiseeToken}`);
+
+    expect(listRes.status).toBe(200);
+    expect(Array.isArray(listRes.body)).toBe(true);
+    // Franchisee should have at least the test franchise
+    expect(listRes.body.length).toBeGreaterThan(0);
+  });
+
+  test("admin can list any user's franchises", async () => {
+    // Get admin token
+    const adminLoginRes = await request(app)
+      .put("/api/auth")
+      .send({ email: "admin@test.com", password: "admin123" });
+    const adminToken = adminLoginRes.body.token;
+
+    // Get diner ID
+    const dinerLoginRes = await request(app)
+      .put("/api/auth")
+      .send({ email: "diner@test.com", password: "diner123" });
+    const dinerId = dinerLoginRes.body.user.id;
+
+    const listRes = await request(app)
+      .get(`/api/franchise/${dinerId}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(listRes.status).toBe(200);
+    expect(Array.isArray(listRes.body)).toBe(true);
+  });
+
+  test("user cannot list another user's franchises", async () => {
+    // Get diner token
+    const dinerLoginRes = await request(app)
+      .put("/api/auth")
+      .send({ email: "diner@test.com", password: "diner123" });
+    const dinerToken = dinerLoginRes.body.token;
+
+    // Get franchisee ID
+    const franchiseeLoginRes = await request(app)
+      .put("/api/auth")
+      .send({ email: "franchisee@test.com", password: "franchisee123" });
+    const franchiseeId = franchiseeLoginRes.body.user.id;
+
+    const listRes = await request(app)
+      .get(`/api/franchise/${franchiseeId}`)
+      .set("Authorization", `Bearer ${dinerToken}`);
+
+    expect(listRes.status).toBe(200);
+    // Should return empty array since authorization check prevents access
+    expect(listRes.body).toEqual([]);
+  });
+
+  test("cannot list franchises without authentication", async () => {
+    const listRes = await request(app).get("/api/franchise/1");
+
+    expect(listRes.status).toBe(401);
+    expect(listRes.body.message).toBe("unauthorized");
+  });
+
+  test("cannot list franchises with invalid token", async () => {
+    const listRes = await request(app)
+      .get("/api/franchise/1")
+      .set("Authorization", `Bearer invalidtoken123`);
+
+    expect(listRes.status).toBe(401);
+    expect(listRes.body.message).toBe("unauthorized");
+  });
+});
+
 function expectValidJwt(potentialJwt) {
   expect(potentialJwt).toMatch(
     /^[a-zA-Z0-9\-_]*\.[a-zA-Z0-9\-_]*\.[a-zA-Z0-9\-_]*$/,
