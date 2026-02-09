@@ -500,6 +500,81 @@ describe("delete store", () => {
   });
 });
 
+describe("delete franchise", () => {
+  let franchiseId;
+  let adminToken;
+
+  beforeAll(async () => {
+    // Get admin token
+    const adminLoginRes = await request(app)
+      .put("/api/auth")
+      .send({ email: "admin@test.com", password: "admin123" });
+    adminToken = adminLoginRes.body.token;
+
+    // Create a franchise for testing
+    const franchiseRes = await request(app)
+      .post("/api/franchise")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        name: `Test Franchise ${Math.random().toString(36).substring(7)}`,
+        admins: [{ email: "franchisee@test.com" }],
+      });
+    franchiseId = franchiseRes.body.id;
+  });
+
+  test("admin can delete a franchise", async () => {
+    // Create a franchise to delete
+    const franchiseRes = await request(app)
+      .post("/api/franchise")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        name: `Delete Test ${Math.random().toString(36).substring(7)}`,
+        admins: [{ email: "franchisee@test.com" }],
+      });
+    const franchiseToDelete = franchiseRes.body.id;
+
+    // Delete it with auth
+    const deleteRes = await request(app)
+      .delete(`/api/franchise/${franchiseToDelete}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(deleteRes.status).toBe(200);
+    expect(deleteRes.body.message).toBe("franchise deleted");
+  });
+
+  test("cannot delete a franchise without authentication", async () => {
+    const deleteRes = await request(app).delete(
+      `/api/franchise/${franchiseId}`,
+    );
+
+    expect(deleteRes.status).toBe(401);
+    expect(deleteRes.body.message).toBe("unauthorized");
+  });
+
+  test("cannot delete a franchise if not admin", async () => {
+    const dinerLoginRes = await request(app)
+      .put("/api/auth")
+      .send({ email: "diner@test.com", password: "diner123" });
+    const dinerToken = dinerLoginRes.body.token;
+
+    const deleteRes = await request(app)
+      .delete(`/api/franchise/${franchiseId}`)
+      .set("Authorization", `Bearer ${dinerToken}`);
+
+    expect(deleteRes.status).toBe(403);
+    expect(deleteRes.body.message).toBe("unable to delete a franchise");
+  });
+
+  test("deleting non-existent franchise returns 404", async () => {
+    const deleteRes = await request(app)
+      .delete(`/api/franchise/99999`)
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(deleteRes.status).toBe(404);
+    expect(deleteRes.body.message).toBe("franchise not found");
+  });
+});
+
 function expectValidJwt(potentialJwt) {
   expect(potentialJwt).toMatch(
     /^[a-zA-Z0-9\-_]*\.[a-zA-Z0-9\-_]*\.[a-zA-Z0-9\-_]*$/,
