@@ -120,11 +120,15 @@ async function initializeTestDatabase(dbName) {
     });
 
     // Create franchise with franchisee as admin
+    // Use unique franchise name based on database name to avoid conflicts
+    const franchiseName = dbName
+      ? `Franchise_${dbName}`
+      : `Test Franchise ${Date.now()}`;
     const franchiseRes = await request(app)
       .post("/api/franchise")
       .set("Authorization", `Bearer ${adminToken}`)
       .send({
-        name: "Test Franchise",
+        name: franchiseName,
         admins: [{ email: "franchisee@test.com" }],
       });
 
