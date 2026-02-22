@@ -100,9 +100,12 @@ userRouter.get(
       return res.status(403).json({ message: "unauthorized" });
     }
 
+    const page = parseInt(req.query.page) || 0;
+    const limit = parseInt(req.query.limit) || 10;
     const nameFilter = req.query.name;
-    const users = await DB.listUsers(nameFilter);
-    res.json(users);
+
+    const [users, more] = await DB.listUsers(page, limit, nameFilter);
+    res.json({ users, page, more });
   }),
 );
 
