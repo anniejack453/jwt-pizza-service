@@ -175,6 +175,54 @@ class DB {
     }
   }
 
+  async deleteUser(userId) {
+    const connection = await this.getConnection();
+    try {
+      await connection.beginTransaction();
+      try {
+        // Check if user exists
+        const userCheck = await this.query(
+          connection,
+          `SELECT id FROM user WHERE id=?`,
+          [userId],
+        );
+        if (userCheck.length === 0) {
+          throw new StatusCodeError("unknown user", 404);
+        }
+
+        // Check if user is an admin
+        const adminCheck = await this.query(
+          connection,
+          `SELECT * FROM userRole WHERE userId=? AND role=?`,
+          [userId, Role.Admin],
+        );
+        if (adminCheck.length > 0) {
+          throw new StatusCodeError("cannot delete admin user", 403);
+        }
+
+        // Delete user's auth tokens
+        await this.query(connection, `DELETE FROM auth WHERE userId=?`, [
+          userId,
+        ]);
+
+        // Delete user's roles
+        await this.query(connection, `DELETE FROM userRole WHERE userId=?`, [
+          userId,
+        ]);
+
+        // Delete the user
+        await this.query(connection, `DELETE FROM user WHERE id=?`, [userId]);
+
+        await connection.commit();
+      } catch (err) {
+        await connection.rollback();
+        throw err;
+      }
+    } finally {
+      connection.end();
+    }
+  }
+
   async loginUser(userId, token) {
     token = this.getTokenSignature(token);
     const connection = await this.getConnection();
