@@ -16,21 +16,20 @@ async function initializeTestDatabase(dbName) {
     // Wait for DB to initialize
     await DB.initialized;
 
+    let admin, diner, franchiseeUser;
+    let usersExist = false;
+
     // Check if test database is already initialized
     try {
-      const adminUser = await DB.getUser("admin@test.com");
-      const dinerUser = await DB.getUser("diner@test.com");
-      const franchiseeUser = await DB.getUser("franchisee@test.com");
+      admin = await DB.getUser("admin@test.com");
+      diner = await DB.getUser("diner@test.com");
+      franchiseeUser = await DB.getUser("franchisee@test.com");
+      usersExist = true;
 
-      // If all users exist, database is already initialized
-      console.log("Test database already initialized");
-      return {
-        admin: adminUser,
-        diner: dinerUser,
-        franchisee: franchiseeUser,
-      };
+      console.log("Test users already exist, cleaning up accumulated data");
     } catch {
       // Users don't exist, proceed with full initialization
+      console.log("Initializing test database from scratch");
     }
 
     // Clear existing data by deleting in correct order (respecting foreign keys)
@@ -42,19 +41,34 @@ async function initializeTestDatabase(dbName) {
       await connection.query(`DELETE FROM userRole`);
       await connection.query(`DELETE FROM auth`);
       await connection.query(`DELETE FROM franchise`);
-      await connection.query(`DELETE FROM user`);
+      if (!usersExist) {
+        await connection.query(`DELETE FROM user`);
+      }
       await connection.query(`DELETE FROM menu`);
     } finally {
       connection.end();
     }
 
-    // Create admin user
-    const admin = await DB.addUser({
-      name: "Admin User",
-      email: "admin@test.com",
-      password: "admin123",
-      roles: [{ role: Role.Admin }],
-    });
+    if (!usersExist) {
+      // Create admin user
+      admin = await DB.addUser({
+        name: "Admin User",
+        email: "admin@test.com",
+        password: "admin123",
+        roles: [{ role: Role.Admin }],
+      });
+    } else {
+      // Re-add base role for existing admin user
+      const conn = await DB.getConnection();
+      try {
+        await conn.query(
+          `INSERT INTO userRole (userId, role, objectId) VALUES (?, ?, ?)`,
+          [admin.id, Role.Admin, 0],
+        );
+      } finally {
+        conn.end();
+      }
+    }
 
     // Get admin token for API requests
     const adminLoginRes = await request(app)
@@ -103,21 +117,38 @@ async function initializeTestDatabase(dbName) {
         .send(item);
     }
 
-    // Create diner user
-    const diner = await DB.addUser({
-      name: "Diner User",
-      email: "diner@test.com",
-      password: "diner123",
-      roles: [{ role: Role.Diner }],
-    });
+    if (!usersExist) {
+      // Create diner user
+      diner = await DB.addUser({
+        name: "Diner User",
+        email: "diner@test.com",
+        password: "diner123",
+        roles: [{ role: Role.Diner }],
+      });
 
-    // Create franchisee user
-    const franchiseeUser = await DB.addUser({
-      name: "Franchisee User",
-      email: "franchisee@test.com",
-      password: "franchisee123",
-      roles: [{ role: Role.Diner }],
-    });
+      // Create franchisee user
+      franchiseeUser = await DB.addUser({
+        name: "Franchisee User",
+        email: "franchisee@test.com",
+        password: "franchisee123",
+        roles: [{ role: Role.Diner }],
+      });
+    } else {
+      // Re-add base diner role for existing users
+      const conn = await DB.getConnection();
+      try {
+        await conn.query(
+          `INSERT INTO userRole (userId, role, objectId) VALUES (?, ?, ?)`,
+          [diner.id, Role.Diner, 0],
+        );
+        await conn.query(
+          `INSERT INTO userRole (userId, role, objectId) VALUES (?, ?, ?)`,
+          [franchiseeUser.id, Role.Diner, 0],
+        );
+      } finally {
+        conn.end();
+      }
+    }
 
     // Create franchise with franchisee as admin
     // Use unique franchise name based on database name to avoid conflicts
