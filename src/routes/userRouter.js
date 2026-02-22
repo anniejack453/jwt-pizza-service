@@ -95,7 +95,14 @@ userRouter.get(
   "/",
   authRouter.authenticateToken,
   asyncHandler(async (req, res) => {
-    res.json({});
+    // Only admins can list users
+    if (!req.user.isRole(Role.Admin)) {
+      return res.status(403).json({ message: "unauthorized" });
+    }
+
+    const nameFilter = req.query.name;
+    const users = await DB.listUsers(nameFilter);
+    res.json(users);
   }),
 );
 
