@@ -420,7 +420,8 @@ describe("delete user", () => {
     const loginRes = await request(app)
       .put("/api/auth")
       .send({ email: userEmail, password: userPassword });
-    expect(loginRes.status).toBe(404);
+    expect(loginRes.status).toBe(401);
+    expect(loginRes.body.message).toContain("Invalid");
   });
 
   test("deleted user's auth tokens are invalidated", async () => {
