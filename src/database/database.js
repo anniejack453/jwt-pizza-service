@@ -132,6 +132,41 @@ class DB {
     }
   }
 
+  async listUsers(nameFilter) {
+    const connection = await this.getConnection();
+    try {
+      let query = `SELECT id, name, email FROM user`;
+      let params = [];
+
+      // Apply name filter if provided
+      if (nameFilter) {
+        // Convert wildcard to SQL LIKE pattern
+        nameFilter = nameFilter.replace(/\*/g, "%");
+        query += ` WHERE name LIKE ?`;
+        params.push(nameFilter);
+      }
+
+      // Get all users matching the filter (or all users if no filter)
+      const users = await this.query(connection, query, params);
+
+      // For each user, get their roles
+      for (const user of users) {
+        const roleResult = await this.query(
+          connection,
+          `SELECT role, objectId FROM userRole WHERE userId=?`,
+          [user.id],
+        );
+        user.roles = roleResult.map((r) => {
+          return { objectId: r.objectId || undefined, role: r.role };
+        });
+      }
+
+      return users;
+    } finally {
+      connection.end();
+    }
+  }
+
   async loginUser(userId, token) {
     token = this.getTokenSignature(token);
     const connection = await this.getConnection();
