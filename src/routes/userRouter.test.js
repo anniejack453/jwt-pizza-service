@@ -183,17 +183,103 @@ describe("update user", () => {
   });
 });
 
-test("list users unauthorized", async () => {
-  const listUsersRes = await request(app).get("/api/user");
-  expect(listUsersRes.status).toBe(401);
-});
+describe("list users", () => {
+  let adminToken;
+  let regularUserToken;
 
-test("list users", async () => {
-  const [, userToken] = await registerUser(request(app));
-  const listUsersRes = await request(app)
-    .get("/api/user")
-    .set("Authorization", "Bearer " + userToken);
-  expect(listUsersRes.status).toBe(200);
+  beforeAll(async () => {
+    // Get admin token
+    const adminLoginRes = await request(app)
+      .put("/api/auth")
+      .send({ email: "a@jwt.com", password: "admin" });
+    adminToken = adminLoginRes.body.token;
+
+    // Create a regular user
+    const [, userToken] = await registerUser(request(app));
+    regularUserToken = userToken;
+  });
+
+  test("requires authentication", async () => {
+    const res = await request(app).get("/api/user");
+    expect(res.status).toBe(401);
+    expect(res.body.message).toBe("unauthorized");
+  });
+
+  test("rejects non-admin users", async () => {
+    const res = await request(app)
+      .get("/api/user")
+      .set("Authorization", `Bearer ${regularUserToken}`);
+    expect(res.status).toBe(403);
+    expect(res.body.message).toBe("unauthorized");
+  });
+
+  test("admin can list all users", async () => {
+    const res = await request(app)
+      .get("/api/user")
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBeGreaterThan(0);
+  });
+
+  test("returns user with name, email, and roles", async () => {
+    const res = await request(app)
+      .get("/api/user")
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body[0]).toHaveProperty("name");
+    expect(res.body[0]).toHaveProperty("email");
+    expect(res.body[0]).toHaveProperty("roles");
+    expect(Array.isArray(res.body[0].roles)).toBe(true);
+  });
+
+  test("does not return password", async () => {
+    const res = await request(app)
+      .get("/api/user")
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body[0]).not.toHaveProperty("password");
+  });
+
+  test("filters users by name", async () => {
+    // Create a user with a unique name
+    const uniqueName = `TestUser_${Math.random().toString(36).substring(2, 10)}`;
+    await request(app)
+      .post("/api/auth")
+      .send({
+        name: uniqueName,
+        email: `${Math.random().toString(36).substring(2, 12)}@test.com`,
+        password: "pass",
+      });
+
+    // Filter by the unique name
+    const res = await request(app)
+      .get(`/api/user?name=${uniqueName}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.length).toBeGreaterThan(0);
+    expect(res.body[0].name).toBe(uniqueName);
+  });
+
+  test("filters users by partial name", async () => {
+    // Create users with similar names
+    const baseName = `FilterTest_${Math.random().toString(36).substring(2, 6)}`;
+    await request(app)
+      .post("/api/auth")
+      .send({
+        name: `${baseName}_Alpha`,
+        email: `${Math.random().toString(36).substring(2, 12)}@test.com`,
+        password: "pass",
+      });
+
+    // Filter using partial name with wildcard
+    const res = await request(app)
+      .get(`/api/user?name=${baseName}*`)
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.length).toBeGreaterThan(0);
+    expect(res.body.some((u) => u.name.includes(baseName))).toBe(true);
+  });
 });
 
 async function registerUser(service) {
