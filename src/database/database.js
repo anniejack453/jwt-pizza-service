@@ -132,9 +132,10 @@ class DB {
     }
   }
 
-  async listUsers(nameFilter) {
+  async listUsers(page = 0, limit = 10, nameFilter) {
     const connection = await this.getConnection();
     try {
+      const offset = page * limit;
       let query = `SELECT id, name, email FROM user`;
       let params = [];
 
@@ -146,11 +147,18 @@ class DB {
         params.push(nameFilter);
       }
 
-      // Get all users matching the filter (or all users if no filter)
+      // Add pagination with limit + 1 to check if there are more results
+      query += ` LIMIT ${limit + 1} OFFSET ${offset}`;
+
+      // Get users matching the filter
       const users = await this.query(connection, query, params);
 
+      // Check if there are more results
+      const more = users.length > limit;
+      const resultUsers = more ? users.slice(0, limit) : users;
+
       // For each user, get their roles
-      for (const user of users) {
+      for (const user of resultUsers) {
         const roleResult = await this.query(
           connection,
           `SELECT role, objectId FROM userRole WHERE userId=?`,
@@ -161,7 +169,7 @@ class DB {
         });
       }
 
-      return users;
+      return [resultUsers, more];
     } finally {
       connection.end();
     }
