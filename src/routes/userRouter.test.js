@@ -354,6 +354,121 @@ describe("list users", () => {
   });
 });
 
+describe("delete user", () => {
+  let adminToken;
+  let regularUserToken;
+  let regularUserId;
+  let userToDeleteId;
+
+  beforeAll(async () => {
+    // Get admin token
+    const adminLoginRes = await request(app)
+      .put("/api/auth")
+      .send({ email: "admin@test.com", password: "admin123" });
+    adminToken = adminLoginRes.body.token;
+
+    // Create a regular user
+    const [regularUser, regToken] = await registerUser(request(app));
+    regularUserId = regularUser.id;
+    regularUserToken = regToken;
+
+    // Create a user to delete
+    const [userToDelete] = await registerUser(request(app));
+    userToDeleteId = userToDelete.id;
+  });
+
+  test("requires authentication", async () => {
+    const res = await request(app).delete(`/api/user/${userToDeleteId}`);
+    expect(res.status).toBe(401);
+    expect(res.body.message).toBe("unauthorized");
+  });
+
+  test("rejects non-admin users", async () => {
+    // Create another user to try to delete
+    const [otherUser] = await registerUser(request(app));
+
+    const res = await request(app)
+      .delete(`/api/user/${otherUser.id}`)
+      .set("Authorization", `Bearer ${regularUserToken}`);
+    expect(res.status).toBe(403);
+    expect(res.body.message).toBe("unauthorized");
+  });
+
+  test("admin can delete a user", async () => {
+    // Create a user to delete
+    const [userToDelete] = await registerUser(request(app));
+
+    const res = await request(app)
+      .delete(`/api/user/${userToDelete.id}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.message).toBe("user deleted");
+  });
+
+  test("deleted user cannot login", async () => {
+    // Create a user
+    const [user] = await registerUser(request(app));
+    const userEmail = user.email;
+    const userPassword = user.password;
+
+    // Delete the user
+    await request(app)
+      .delete(`/api/user/${user.id}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    // Try to login as deleted user
+    const loginRes = await request(app)
+      .put("/api/auth")
+      .send({ email: userEmail, password: userPassword });
+    expect(loginRes.status).toBe(404);
+  });
+
+  test("deleted user's auth tokens are invalidated", async () => {
+    // Create a user and get their token
+    const [user, userToken] = await registerUser(request(app));
+
+    // Verify user can access protected endpoint
+    const meRes1 = await request(app)
+      .get("/api/user/me")
+      .set("Authorization", `Bearer ${userToken}`);
+    expect(meRes1.status).toBe(200);
+
+    // Delete the user
+    await request(app)
+      .delete(`/api/user/${user.id}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    // Try to use the deleted user's token
+    const meRes2 = await request(app)
+      .get("/api/user/me")
+      .set("Authorization", `Bearer ${userToken}`);
+    expect(meRes2.status).toBe(401);
+  });
+
+  test("returns 404 for non-existent user", async () => {
+    const nonExistentUserId = 999999;
+    const res = await request(app)
+      .delete(`/api/user/${nonExistentUserId}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(res.status).toBe(404);
+    expect(res.body.message).toContain("user");
+  });
+
+  test("cannot delete admin user", async () => {
+    // Get the admin user id
+    const meRes = await request(app)
+      .get("/api/user/me")
+      .set("Authorization", `Bearer ${adminToken}`);
+    const adminUserId = meRes.body.id;
+
+    const res = await request(app)
+      .delete(`/api/user/${adminUserId}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(res.status).toBe(403);
+    expect(res.body.message).toContain("admin");
+  });
+});
+
 async function registerUser(service) {
   const testUser = {
     name: "pizza diner",
