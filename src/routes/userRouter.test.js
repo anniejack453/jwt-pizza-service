@@ -218,8 +218,9 @@ describe("list users", () => {
       .get("/api/user")
       .set("Authorization", `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBeGreaterThan(0);
+    expect(res.body).toHaveProperty("users");
+    expect(Array.isArray(res.body.users)).toBe(true);
+    expect(res.body.users.length).toBeGreaterThan(0);
   });
 
   test("returns user with name, email, and roles", async () => {
@@ -227,10 +228,10 @@ describe("list users", () => {
       .get("/api/user")
       .set("Authorization", `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
-    expect(res.body[0]).toHaveProperty("name");
-    expect(res.body[0]).toHaveProperty("email");
-    expect(res.body[0]).toHaveProperty("roles");
-    expect(Array.isArray(res.body[0].roles)).toBe(true);
+    expect(res.body.users[0]).toHaveProperty("name");
+    expect(res.body.users[0]).toHaveProperty("email");
+    expect(res.body.users[0]).toHaveProperty("roles");
+    expect(Array.isArray(res.body.users[0].roles)).toBe(true);
   });
 
   test("does not return password", async () => {
@@ -238,7 +239,7 @@ describe("list users", () => {
       .get("/api/user")
       .set("Authorization", `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
-    expect(res.body[0]).not.toHaveProperty("password");
+    expect(res.body.users[0]).not.toHaveProperty("password");
   });
 
   test("filters users by name", async () => {
@@ -257,8 +258,8 @@ describe("list users", () => {
       .get(`/api/user?name=${uniqueName}`)
       .set("Authorization", `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
-    expect(res.body.length).toBeGreaterThan(0);
-    expect(res.body[0].name).toBe(uniqueName);
+    expect(res.body.users.length).toBeGreaterThan(0);
+    expect(res.body.users[0].name).toBe(uniqueName);
   });
 
   test("filters users by partial name", async () => {
@@ -277,8 +278,80 @@ describe("list users", () => {
       .get(`/api/user?name=${baseName}*`)
       .set("Authorization", `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
-    expect(res.body.length).toBeGreaterThan(0);
-    expect(res.body.some((u) => u.name.includes(baseName))).toBe(true);
+    expect(res.body.users.length).toBeGreaterThan(0);
+    expect(res.body.users.some((u) => u.name.includes(baseName))).toBe(true);
+  });
+
+  test("supports pagination with page and limit", async () => {
+    // Get first page with limit of 2
+    const res1 = await request(app)
+      .get("/api/user?page=0&limit=2")
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(res1.status).toBe(200);
+    expect(res1.body).toHaveProperty("users");
+    expect(res1.body).toHaveProperty("page");
+    expect(res1.body.page).toBe(0);
+    expect(res1.body.users.length).toBeLessThanOrEqual(2);
+
+    // Get second page
+    const res2 = await request(app)
+      .get("/api/user?page=1&limit=2")
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(res2.status).toBe(200);
+    expect(res2.body.page).toBe(1);
+  });
+
+  test("indicates when more results are available", async () => {
+    // Create several users
+    for (let i = 0; i < 5; i++) {
+      await request(app)
+        .post("/api/auth")
+        .send({
+          name: `PaginationTest_${i}`,
+          email: `pagination${i}_${Math.random().toString(36).substring(2, 12)}@test.com`,
+          password: "pass",
+        });
+    }
+
+    // Request with small limit
+    const res = await request(app)
+      .get("/api/user?page=0&limit=3")
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("more");
+    expect(typeof res.body.more).toBe("boolean");
+  });
+
+  test("uses default pagination values", async () => {
+    const res = await request(app)
+      .get("/api/user")
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("users");
+    expect(res.body).toHaveProperty("page");
+    expect(Array.isArray(res.body.users)).toBe(true);
+  });
+
+  test("pagination works with name filtering", async () => {
+    // Create users with a specific pattern
+    const prefix = `PageFilter_${Math.random().toString(36).substring(2, 6)}`;
+    for (let i = 0; i < 3; i++) {
+      await request(app)
+        .post("/api/auth")
+        .send({
+          name: `${prefix}_User${i}`,
+          email: `pagefilter${i}_${Math.random().toString(36).substring(2, 12)}@test.com`,
+          password: "pass",
+        });
+    }
+
+    // Filter and paginate
+    const res = await request(app)
+      .get(`/api/user?name=${prefix}*&page=0&limit=2`)
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.users.length).toBeLessThanOrEqual(2);
+    expect(res.body.users.every((u) => u.name.includes(prefix))).toBe(true);
   });
 });
 
