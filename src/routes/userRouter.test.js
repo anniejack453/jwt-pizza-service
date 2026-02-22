@@ -191,7 +191,7 @@ describe("list users", () => {
     // Get admin token
     const adminLoginRes = await request(app)
       .put("/api/auth")
-      .send({ email: "a@jwt.com", password: "admin" });
+      .send({ email: "admin@test.com", password: "admin123" });
     adminToken = adminLoginRes.body.token;
 
     // Create a regular user
