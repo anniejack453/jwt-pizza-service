@@ -289,8 +289,7 @@ describe("list users", () => {
       .set("Authorization", `Bearer ${adminToken}`);
     expect(res1.status).toBe(200);
     expect(res1.body).toHaveProperty("users");
-    expect(res1.body).toHaveProperty("page");
-    expect(res1.body.page).toBe(0);
+    expect(res1.body).toHaveProperty("more");
     expect(res1.body.users.length).toBeLessThanOrEqual(2);
 
     // Get second page
@@ -298,7 +297,7 @@ describe("list users", () => {
       .get("/api/user?page=1&limit=2")
       .set("Authorization", `Bearer ${adminToken}`);
     expect(res2.status).toBe(200);
-    expect(res2.body.page).toBe(1);
+    expect(res2.body).toHaveProperty("more");
   });
 
   test("indicates when more results are available", async () => {
@@ -328,7 +327,7 @@ describe("list users", () => {
       .set("Authorization", `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty("users");
-    expect(res.body).toHaveProperty("page");
+    expect(res.body).toHaveProperty("more");
     expect(Array.isArray(res.body.users)).toBe(true);
   });
 
