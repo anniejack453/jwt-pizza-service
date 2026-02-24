@@ -62,7 +62,7 @@ async function initializeTestDatabase(dbName) {
       const conn = await DB.getConnection();
       try {
         await conn.query(
-          `INSERT IGNORE INTO userRole (userId, role, objectId) VALUES (?, ?, ?)`,
+          `INSERT INTO userRole (userId, role, objectId) VALUES (?, ?, ?)`,
           [admin.id, Role.Admin, 0],
         );
       } finally {
@@ -138,11 +138,11 @@ async function initializeTestDatabase(dbName) {
       const conn = await DB.getConnection();
       try {
         await conn.query(
-          `INSERT IGNORE INTO userRole (userId, role, objectId) VALUES (?, ?, ?)`,
+          `INSERT INTO userRole (userId, role, objectId) VALUES (?, ?, ?)`,
           [diner.id, Role.Diner, 0],
         );
         await conn.query(
-          `INSERT IGNORE INTO userRole (userId, role, objectId) VALUES (?, ?, ?)`,
+          `INSERT INTO userRole (userId, role, objectId) VALUES (?, ?, ?)`,
           [franchiseeUser.id, Role.Diner, 0],
         );
       } finally {
