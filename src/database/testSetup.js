@@ -58,11 +58,11 @@ async function initializeTestDatabase(dbName) {
         roles: [{ role: Role.Admin }],
       });
     } else {
-      // Re-add base role for existing admin user
+      // Re-add base role for existing admin user (using INSERT IGNORE for idempotency)
       const conn = await DB.getConnection();
       try {
         await conn.query(
-          `INSERT INTO userRole (userId, role, objectId) VALUES (?, ?, ?)`,
+          `INSERT IGNORE INTO userRole (userId, role, objectId) VALUES (?, ?, ?)`,
           [admin.id, Role.Admin, 0],
         );
       } finally {
@@ -134,15 +134,15 @@ async function initializeTestDatabase(dbName) {
         roles: [{ role: Role.Diner }],
       });
     } else {
-      // Re-add base diner role for existing users
+      // Re-add base diner role for existing users (using INSERT IGNORE for idempotency)
       const conn = await DB.getConnection();
       try {
         await conn.query(
-          `INSERT INTO userRole (userId, role, objectId) VALUES (?, ?, ?)`,
+          `INSERT IGNORE INTO userRole (userId, role, objectId) VALUES (?, ?, ?)`,
           [diner.id, Role.Diner, 0],
         );
         await conn.query(
-          `INSERT INTO userRole (userId, role, objectId) VALUES (?, ?, ?)`,
+          `INSERT IGNORE INTO userRole (userId, role, objectId) VALUES (?, ?, ?)`,
           [franchiseeUser.id, Role.Diner, 0],
         );
       } finally {
