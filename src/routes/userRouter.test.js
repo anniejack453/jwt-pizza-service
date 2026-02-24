@@ -357,7 +357,6 @@ describe("list users", () => {
 describe("delete user", () => {
   let adminToken;
   let regularUserToken;
-  let regularUserId;
   let userToDeleteId;
 
   beforeAll(async () => {
@@ -368,8 +367,7 @@ describe("delete user", () => {
     adminToken = adminLoginRes.body.token;
 
     // Create a regular user
-    const [regularUser, regToken] = await registerUser(request(app));
-    regularUserId = regularUser.id;
+    const [, regToken] = await registerUser(request(app));
     regularUserToken = regToken;
 
     // Create a user to delete
