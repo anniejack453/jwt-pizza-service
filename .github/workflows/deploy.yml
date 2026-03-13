@@ -38,30 +38,24 @@ jobs:
         run: npm run lint
 
       - name: Write config file
-        env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          FACTORY_API_KEY: ${{ secrets.FACTORY_API_KEY }}
         run: |
-          node -e "
-            const config = {
-              jwtSecret: process.env.JWT_SECRET,
-              db: {
-                connection: {
-                  host: '127.0.0.1',
-                  user: 'root',
-                  password: 'tempdbpassword',
-                  database: 'pizza',
-                  connectTimeout: 60000,
-                },
-                listPerPage: 10,
+          echo "module.exports = {
+            jwtSecret: '${{ secrets.JWT_SECRET }}',
+            db: {
+              connection: {
+                host: '127.0.0.1',
+                user: 'root',
+                password: 'tempdbpassword',
+                database: 'pizza',
+                connectTimeout: 60000,
               },
-              factory: {
-                url: 'https://pizza-factory.cs329.click',
-                apiKey: process.env.FACTORY_API_KEY,
-              },
-            };
-            require('fs').writeFileSync('src/config.js', 'module.exports = ' + JSON.stringify(config, null, 2) + ';');
-          "
+              listPerPage: 10,
+            },
+            factory: {
+              url: 'https://pizza-factory.cs329.click',
+              apiKey: '${{ secrets.FACTORY_API_KEY }}',
+            },
+          };" > src/config.js
 
       - name: Tests
         env:
