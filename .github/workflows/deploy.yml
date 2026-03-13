@@ -40,7 +40,7 @@ jobs:
       - name: Write config file
         run: |
           echo "module.exports = {
-            jwtSecret: 'placeholder-secret',
+            jwtSecret: '${{ secrets.JWT_SECRET }}',
             db: {
               connection: {
                 host: '127.0.0.1',
@@ -53,7 +53,7 @@ jobs:
             },
             factory: {
               url: 'https://pizza-factory.cs329.click',
-              apiKey: 'placeholder-key',
+              apiKey: '${{ secrets.FACTORY_API_KEY }}',
             },
           };" > src/config.js
 
