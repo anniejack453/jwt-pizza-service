@@ -2,20 +2,20 @@ const os = require("os");
 const config = require("./config");
 
 // Metrics stored in memory
-const requests = {};
-let greetingChangedCount = 0;
+// const requests = {};
+// let greetingChangedCount = 0;
 
-// Function to track when the greeting is changed
-function greetingChanged() {
-  greetingChangedCount++;
-}
+// // Function to track when the greeting is changed
+// function greetingChanged() {
+//   greetingChangedCount++;
+// }
 
-// Middleware to track requests
-function requestTracker(req, res, next) {
-  const endpoint = `[${req.method}] ${req.path}`;
-  requests[endpoint] = (requests[endpoint] || 0) + 1;
-  next();
-}
+// // Middleware to track requests
+// function requestTracker(req, res, next) {
+//   const endpoint = `[${req.method}] ${req.path}`;
+//   requests[endpoint] = (requests[endpoint] || 0) + 1;
+//   next();
+// }
 
 // This will periodically send metrics to Grafana
 setInterval(() => {
@@ -28,16 +28,16 @@ setInterval(() => {
     );
   });
 
-  metrics.push(
-    createMetric(
-      "greetingChange",
-      greetingChangedCount,
-      "1",
-      "sum",
-      "asInt",
-      {},
-    ),
-  );
+  //   metrics.push(
+  //     createMetric(
+  //       "greetingChange",
+  //       greetingChangedCount,
+  //       "1",
+  //       "sum",
+  //       "asInt",
+  //       {},
+  //     ),
+  //   );
 
   metrics.push(
     createMetric(
@@ -149,8 +149,7 @@ function getMemoryUsagePercentage() {
 }
 
 module.exports = {
-  requestTracker,
-  greetingChanged,
+  //requestTracker,
   getCpuUsagePercentage,
   getMemoryUsagePercentage,
 };
