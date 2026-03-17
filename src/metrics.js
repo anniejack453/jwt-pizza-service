@@ -2,7 +2,7 @@ const os = require("os");
 const config = require("./config");
 
 // Metrics stored in memory
-// const requests = {};
+const requests = {};
 // let greetingChangedCount = 0;
 
 // // Function to track when the greeting is changed
