@@ -418,7 +418,7 @@ function sendMetricToGrafana(metrics) {
     },
   })
     .then(async (response) => {
-      const responseBody = await response.text();
+      await response.text();
       if (!response.ok) {
         throw new Error(`HTTP status: ${response.status}`);
       }
