@@ -3,11 +3,6 @@ const config = require("./config");
 
 const ACTIVE_USER_WINDOW_MS = 600000;
 
-console.log(
-  "Metrics module loaded. Config endpointUrl:",
-  config.metrics?.endpointUrl,
-);
-
 // Metrics stored in memory
 const requests = {};
 
@@ -346,10 +341,6 @@ setInterval(() => {
   });
   pizzaCreationLatencies.length = 0;
 
-  // Log only latency metrics
-  const latencyMetrics = metrics.filter((m) => m.name.includes("Latency"));
-  console.log("Latency metrics:", JSON.stringify(latencyMetrics, null, 2));
-
   sendMetricToGrafana(metrics);
 }, 10000);
 
@@ -418,7 +409,6 @@ function sendMetricToGrafana(metrics) {
     ],
   };
 
-  console.log("Grafana endpoint:", config.metrics.endpointUrl);
   fetch(`${config.metrics.endpointUrl}`, {
     method: "POST",
     body: JSON.stringify(body),
@@ -429,17 +419,9 @@ function sendMetricToGrafana(metrics) {
   })
     .then(async (response) => {
       const responseBody = await response.text();
-      console.log(
-        `Grafana response: ${response.status} ${response.statusText}`,
-      );
-      if (responseBody) {
-        console.log("Grafana response body:", responseBody.slice(0, 500));
-      }
-
       if (!response.ok) {
         throw new Error(`HTTP status: ${response.status}`);
       }
-      console.log("Metrics sent successfully to Grafana");
     })
     .catch((error) => {
       console.error("Error pushing metrics:", error);
