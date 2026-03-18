@@ -132,7 +132,7 @@ function pruneActiveUsers() {
 }
 
 // This will periodically send metrics to Grafana
-setInterval(() => {
+function flushMetrics() {
   pruneWindow();
   pruneActiveUsers();
 
@@ -342,7 +342,14 @@ setInterval(() => {
   pizzaCreationLatencies.length = 0;
 
   sendMetricToGrafana(metrics);
-}, 10000);
+}
+
+if (process.env.NODE_ENV !== "test") {
+  const metricsInterval = setInterval(flushMetrics, 10000);
+  if (typeof metricsInterval.unref === "function") {
+    metricsInterval.unref();
+  }
+}
 
 function parseEndpointKey(endpointKey) {
   const match = endpointKey.match(/^\[(.+)]\s(.+)$/);
