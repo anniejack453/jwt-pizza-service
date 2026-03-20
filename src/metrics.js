@@ -306,10 +306,15 @@ function flushMetrics() {
   );
 
   // Calculate endpoint latency metrics
+  let totalEndpointLatency = 0;
+  let totalEndpointLatencyCount = 0;
+
   Object.keys(endpointLatencies).forEach((endpoint) => {
     const latencies = endpointLatencies[endpoint];
     if (latencies.length > 0) {
       const avg = latencies.reduce((a, b) => a + b) / latencies.length;
+      totalEndpointLatency += latencies.reduce((a, b) => a + b, 0);
+      totalEndpointLatencyCount += latencies.length;
       const method = endpoint.match(/^\[(.+)]/)[1];
       const path = endpoint.split("] ")[1];
 
@@ -322,6 +327,23 @@ function flushMetrics() {
       );
     }
   });
+
+  if (totalEndpointLatencyCount > 0) {
+    const averageEndpointLatency =
+      totalEndpointLatency / totalEndpointLatencyCount;
+
+    metrics.push(
+      createMetric(
+        "averageEndpointLatency",
+        averageEndpointLatency,
+        "ms",
+        "gauge",
+        "asDouble",
+        {},
+      ),
+    );
+  }
+
   endpointLatencies = {};
 
   // Emit one latency metric per pizza creation request
