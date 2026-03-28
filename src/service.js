@@ -37,7 +37,7 @@ apiRouter.use("/docs", (req, res) => {
       ...orderRouter.docs,
       ...franchiseRouter.docs,
     ],
-    config: { factory: config.factory.url, db: config.db.connection.host },
+    //config: { factory: config.factory.url, db: config.db.connection.host },
   });
 });
 
