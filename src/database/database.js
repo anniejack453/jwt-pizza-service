@@ -4,6 +4,7 @@ const config = require("../config.js");
 const { StatusCodeError } = require("../endpointHelper.js");
 const { Role } = require("../model/model.js");
 const dbModel = require("./dbModel.js");
+const logger = require("../logger.js");
 class DB {
   constructor(configParam) {
     this.config = configParam || config;
@@ -510,8 +511,22 @@ class DB {
   }
 
   async query(connection, sql, params) {
-    const [results] = await connection.execute(sql, params);
-    return results;
+    logger.log("info", "db", {
+      query: sql,
+      params,
+    });
+
+    try {
+      const [results] = await connection.execute(sql, params);
+      return results;
+    } catch (error) {
+      logger.log("error", "db", {
+        query: sql,
+        params,
+        error: error.message,
+      });
+      throw error;
+    }
   }
 
   async getID(connection, key, value, table) {
