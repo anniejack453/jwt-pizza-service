@@ -4,7 +4,7 @@ const orderRouter = require("./routes/orderRouter.js");
 const franchiseRouter = require("./routes/franchiseRouter.js");
 const userRouter = require("./routes/userRouter.js");
 const version = require("./version.json");
-const config = require("./config.js");
+//const config = require("./config.js");
 const metrics = require("./metrics");
 const logger = require("./logger");
 
