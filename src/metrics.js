@@ -146,7 +146,7 @@ function flushMetrics() {
   Object.keys(requests).forEach((endpointKey) => {
     const { method, path } = parseEndpointKey(endpointKey);
     metrics.push(
-      createMetric("requests", requests[endpointKey], "1", "sum", "asInt", {
+      createMetric("requests", requests[endpointKey], "1", "gauge", "asInt", {
         endpoint: path,
         method,
       }),
@@ -364,6 +364,9 @@ function flushMetrics() {
   pizzaCreationLatencies.length = 0;
 
   sendMetricToGrafana(metrics);
+
+  // Reset per-endpoint counters after flush to prevent unbounded cardinality
+  Object.keys(requests).forEach((key) => delete requests[key]);
 }
 
 if (process.env.NODE_ENV !== "test") {
