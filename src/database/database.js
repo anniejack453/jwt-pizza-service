@@ -299,21 +299,54 @@ class DB {
   async addDinerOrder(user, order) {
     const connection = await this.getConnection();
     try {
+      await connection.beginTransaction();
       const orderResult = await this.query(
         connection,
         `INSERT INTO dinerOrder (dinerId, franchiseId, storeId, date) VALUES (?, ?, ?, now())`,
         [user.id, order.franchiseId, order.storeId],
       );
       const orderId = orderResult.insertId;
+      const normalizedItems = [];
       for (const item of order.items) {
-        const menuId = await this.getID(connection, "id", item.menuId, "menu");
+        const menuItemRows = await this.query(
+          connection,
+          `SELECT id, title, price FROM menu WHERE id=?`,
+          [item.menuId],
+        );
+        if (menuItemRows.length === 0) {
+          throw new StatusCodeError("unknown menu item", 400);
+        }
+
+        const menuItem = menuItemRows[0];
+        if (
+          !Number.isFinite(Number(menuItem.price)) ||
+          Number(menuItem.price) <= 0
+        ) {
+          throw new StatusCodeError("invalid menu item price", 400);
+        }
+
         await this.query(
           connection,
           `INSERT INTO orderItem (orderId, menuId, description, price) VALUES (?, ?, ?, ?)`,
-          [orderId, menuId, item.description, item.price],
+          [orderId, menuItem.id, menuItem.title, menuItem.price],
         );
+
+        normalizedItems.push({
+          menuId: menuItem.id,
+          description: menuItem.title,
+          price: menuItem.price,
+        });
       }
-      return { ...order, id: orderId };
+      await connection.commit();
+      return {
+        franchiseId: order.franchiseId,
+        storeId: order.storeId,
+        items: normalizedItems,
+        id: orderId,
+      };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
     } finally {
       connection.end();
     }

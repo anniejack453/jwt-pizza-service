@@ -188,12 +188,6 @@ describe("create order", () => {
   let originalFetch;
 
   beforeAll(async () => {
-    const dinerLoginRes = await request(app)
-      .put("/api/auth")
-      .send({ email: "diner@test.com", password: "diner123" });
-    dinerToken = dinerLoginRes.body.token;
-    expectValidJwt(dinerToken);
-
     const connection = await DB.getConnection();
     try {
       const [franchises] = await connection.query(
@@ -214,10 +208,16 @@ describe("create order", () => {
     originalFetch = global.fetch;
   });
 
+  beforeEach(async () => {
+    const dinerLoginRes = await request(app)
+      .put("/api/auth")
+      .send({ email: "diner@test.com", password: "diner123" });
+    dinerToken = dinerLoginRes.body.token;
+    expectValidJwt(dinerToken);
+  });
+
   afterEach(() => {
-    if (global.fetch && global.fetch.mockRestore) {
-      global.fetch.mockRestore();
-    }
+    global.fetch = originalFetch;
   });
 
   afterAll(() => {

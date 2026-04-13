@@ -8,6 +8,44 @@ const logger = require("../logger.js");
 
 const orderRouter = express.Router();
 
+function validateOrderPayload(orderPayload) {
+  if (!orderPayload || typeof orderPayload !== "object") {
+    throw new StatusCodeError("invalid order payload", 400);
+  }
+
+  const { franchiseId, storeId, items } = orderPayload;
+  if (!Number.isInteger(franchiseId) || franchiseId <= 0) {
+    throw new StatusCodeError("invalid franchiseId", 400);
+  }
+  if (!Number.isInteger(storeId) || storeId <= 0) {
+    throw new StatusCodeError("invalid storeId", 400);
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new StatusCodeError("order must include at least one item", 400);
+  }
+
+  for (const item of items) {
+    if (!item || typeof item !== "object") {
+      throw new StatusCodeError("invalid order item", 400);
+    }
+    if (!Number.isInteger(item.menuId) || item.menuId <= 0) {
+      throw new StatusCodeError("invalid order item menuId", 400);
+    }
+    if (
+      item.description !== undefined &&
+      typeof item.description !== "string"
+    ) {
+      throw new StatusCodeError("invalid order item description", 400);
+    }
+    if (
+      item.price !== undefined &&
+      (!Number.isFinite(Number(item.price)) || Number(item.price) <= 0)
+    ) {
+      throw new StatusCodeError("invalid order item price", 400);
+    }
+  }
+}
+
 orderRouter.docs = [
   {
     method: "GET",
@@ -127,6 +165,7 @@ orderRouter.post(
 
     try {
       const orderReq = req.body;
+      validateOrderPayload(orderReq);
       const order = await DB.addDinerOrder(req.user, orderReq);
       const pizzaCount = getOrderPizzaCount(order);
       const revenue = getOrderRevenue(order);
