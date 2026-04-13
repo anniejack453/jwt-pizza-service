@@ -89,6 +89,57 @@ describe("login", () => {
       .set("Authorization", `Bearer ${expiredToken}`);
     expect(loginRes.status).toBe(400);
   });
+
+  test("locks login after repeated failures", async () => {
+    const target = {
+      email: `lockout_${Math.random().toString(36).substring(2, 10)}@test.com`,
+      password: "wrongpassword",
+    };
+
+    for (let i = 0; i < 4; i++) {
+      const attemptRes = await request(app).put("/api/auth").send(target);
+      expect(attemptRes.status).toBe(401);
+    }
+
+    const lockedRes = await request(app).put("/api/auth").send(target);
+    expect(lockedRes.status).toBe(429);
+    expect(lockedRes.body.message).toBe(
+      "Too many failed login attempts. Try again later.",
+    );
+  });
+});
+
+describe("security hardening", () => {
+  test("allows credentials only for allowlisted origin", async () => {
+    const corsRes = await request(app)
+      .get("/")
+      .set("Origin", "http://localhost:3000");
+
+    expect(corsRes.headers["access-control-allow-origin"]).toBe(
+      "http://localhost:3000",
+    );
+    expect(corsRes.headers["access-control-allow-credentials"]).toBe("true");
+  });
+
+  test("rejects disallowed origin preflight", async () => {
+    const corsRes = await request(app)
+      .options("/api/auth")
+      .set("Origin", "http://evil.example")
+      .set("Access-Control-Request-Method", "PUT")
+      .set("Access-Control-Request-Headers", "Content-Type");
+
+    expect(corsRes.status).toBe(403);
+  });
+
+  test("does not expose stack traces in error responses", async () => {
+    const malformedRes = await request(app)
+      .post("/api/auth")
+      .set("Content-Type", "application/json")
+      .send('{"name":"bad json",');
+
+    expect(malformedRes.status).toBe(400);
+    expect(malformedRes.body.stack).toBeUndefined();
+  });
 });
 
 describe("register", () => {
