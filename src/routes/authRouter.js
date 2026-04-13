@@ -6,6 +6,14 @@ const { asyncHandler } = require("../endpointHelper.js");
 const { DB, Role } = require("../database/database.js");
 
 const authRouter = express.Router();
+const authAttemptState = new Map();
+const authRateLimitConfig = {
+  maxFailedAttempts: config.auth?.maxFailedAttempts || 5,
+  attemptWindowMs: config.auth?.attemptWindowMs || 15 * 60 * 1000,
+  lockoutMs: config.auth?.lockoutMs || 15 * 60 * 1000,
+};
+
+let nowProvider = () => Date.now();
 
 authRouter.docs = [
   {
@@ -118,13 +126,40 @@ authRouter.put(
         return res.status(400).json({ message: "Password is required" });
       }
     }
+
+    const attemptKey = getAuthAttemptKey(req, email);
+    const now = nowProvider();
+    const lockoutRemainingMs = getLockoutRemainingMs(attemptKey, now);
+    if (lockoutRemainingMs > 0) {
+      const retryAfterSeconds = Math.ceil(lockoutRemainingMs / 1000);
+      res.set("Retry-After", String(retryAfterSeconds));
+      return res.status(429).json({
+        message: "Too many authentication attempts. Try again later.",
+        retryAfterSeconds,
+      });
+    }
+
     try {
       const user = await DB.getUser(email, password);
+      clearFailedAttempt(attemptKey);
       const auth = await setAuth(user);
       metrics.recordAuthAttempt(true);
       res.json({ user: user, token: auth });
     } catch {
+      const lockoutApplied = recordFailedAttempt(attemptKey, nowProvider());
       metrics.recordAuthAttempt(false);
+
+      if (lockoutApplied) {
+        const retryAfterSeconds = Math.ceil(
+          authRateLimitConfig.lockoutMs / 1000,
+        );
+        res.set("Retry-After", String(retryAfterSeconds));
+        return res.status(429).json({
+          message: "Too many authentication attempts. Try again later.",
+          retryAfterSeconds,
+        });
+      }
+
       return res.status(401).json({ message: "Invalid email or password" });
     }
   }),
@@ -161,4 +196,76 @@ function readAuthToken(req) {
   return null;
 }
 
-module.exports = { authRouter, setAuthUser, setAuth };
+function getAuthAttemptKey(req, email) {
+  const forwardedFor = req.headers["x-forwarded-for"];
+  const forwardedIp =
+    typeof forwardedFor === "string"
+      ? forwardedFor.split(",")[0].trim()
+      : undefined;
+  const ip = forwardedIp || req.ip || req.socket?.remoteAddress || "unknown";
+  return `${String(email).toLowerCase().trim()}|${ip}`;
+}
+
+function getLockoutRemainingMs(attemptKey, now) {
+  const state = authAttemptState.get(attemptKey);
+  if (!state) {
+    return 0;
+  }
+
+  if (state.lockUntil && state.lockUntil > now) {
+    return state.lockUntil - now;
+  }
+
+  if (now - state.windowStart >= authRateLimitConfig.attemptWindowMs) {
+    authAttemptState.delete(attemptKey);
+    return 0;
+  }
+
+  if (state.lockUntil && state.lockUntil <= now) {
+    authAttemptState.delete(attemptKey);
+  }
+
+  return 0;
+}
+
+function recordFailedAttempt(attemptKey, now) {
+  const existingState = authAttemptState.get(attemptKey);
+  let state = existingState;
+
+  if (
+    !state ||
+    now - state.windowStart >= authRateLimitConfig.attemptWindowMs
+  ) {
+    state = { count: 0, windowStart: now, lockUntil: 0 };
+  }
+
+  state.count += 1;
+
+  if (state.count >= authRateLimitConfig.maxFailedAttempts) {
+    state.lockUntil = now + authRateLimitConfig.lockoutMs;
+  }
+
+  authAttemptState.set(attemptKey, state);
+  return state.lockUntil > now;
+}
+
+function clearFailedAttempt(attemptKey) {
+  authAttemptState.delete(attemptKey);
+}
+
+function resetAuthAttemptLimiter() {
+  authAttemptState.clear();
+  nowProvider = () => Date.now();
+}
+
+function setNowProviderForTests(provider) {
+  nowProvider = provider;
+}
+
+module.exports = {
+  authRouter,
+  setAuthUser,
+  setAuth,
+  resetAuthAttemptLimiter,
+  setNowProviderForTests,
+};

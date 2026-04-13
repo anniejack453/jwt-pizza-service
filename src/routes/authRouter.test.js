@@ -1,5 +1,9 @@
 const request = require("supertest");
 const app = require("../service");
+const {
+  resetAuthAttemptLimiter,
+  setNowProviderForTests,
+} = require("./authRouter.js");
 
 const { initializeTestDatabase } = require("../database/testSetup.js");
 const { DB } = require("../database/database.js");
@@ -17,6 +21,10 @@ beforeAll(async () => {
   const registerRes = await request(app).post("/api/auth").send(testUser);
   testUserAuthToken = registerRes.body.token;
   expectValidJwt(testUserAuthToken);
+});
+
+beforeEach(() => {
+  resetAuthAttemptLimiter();
 });
 
 afterAll(async () => {
@@ -88,6 +96,41 @@ describe("login", () => {
       .put("/api/auth")
       .set("Authorization", `Bearer ${expiredToken}`);
     expect(loginRes.status).toBe(400);
+  });
+
+  test("rate limits repeated failed attempts", async () => {
+    const invalidUser = { email: "t@jwt.com", password: "wrongpassword" };
+
+    for (let i = 0; i < 4; i += 1) {
+      const loginRes = await request(app).put("/api/auth").send(invalidUser);
+      expect(loginRes.status).toBe(401);
+    }
+
+    const lockoutRes = await request(app).put("/api/auth").send(invalidUser);
+    expect(lockoutRes.status).toBe(429);
+    expect(lockoutRes.body.message).toBe(
+      "Too many authentication attempts. Try again later.",
+    );
+    expect(lockoutRes.headers["retry-after"]).toBeDefined();
+  });
+
+  test("allows attempts again after lockout expires", async () => {
+    let now = Date.now();
+    setNowProviderForTests(() => now);
+
+    const invalidUser = { email: "t@jwt.com", password: "wrongpassword" };
+
+    for (let i = 0; i < 5; i += 1) {
+      await request(app).put("/api/auth").send(invalidUser);
+    }
+
+    const lockedRes = await request(app).put("/api/auth").send(invalidUser);
+    expect(lockedRes.status).toBe(429);
+
+    now += 16 * 60 * 1000;
+
+    const retryRes = await request(app).put("/api/auth").send(invalidUser);
+    expect(retryRes.status).toBe(401);
   });
 });
 
