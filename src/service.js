@@ -14,7 +14,13 @@ app.use(setAuthUser);
 app.use(metrics.requestTracker);
 app.use(logger.httpLogger);
 
-const allowedOrigins = new Set(config.cors.allowlist);
+const configuredAllowlist = Array.isArray(config?.cors?.allowlist)
+  ? config.cors.allowlist
+  : (process.env.CORS_ALLOWLIST || "http://localhost:3000")
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean);
+const allowedOrigins = new Set(configuredAllowlist);
 app.use((req, res, next) => {
   const origin = req.headers.origin;
 
