@@ -106,7 +106,8 @@ orderRouter.get(
   "/",
   authRouter.authenticateToken,
   asyncHandler(async (req, res) => {
-    res.json(await DB.getOrders(req.user, req.query.page));
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    res.json(await DB.getOrders(req.user, page));
   }),
 );
 

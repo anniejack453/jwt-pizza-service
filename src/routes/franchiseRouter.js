@@ -80,10 +80,15 @@ franchiseRouter.docs = [
 franchiseRouter.get(
   "/",
   asyncHandler(async (req, res) => {
+    const page = Math.max(0, parseInt(req.query.page, 10) || 0);
+    const limit = Math.min(
+      100,
+      Math.max(1, parseInt(req.query.limit, 10) || 10),
+    );
     const [franchises, more] = await DB.getFranchises(
       req.user,
-      req.query.page,
-      req.query.limit,
+      page,
+      limit,
       req.query.name,
     );
     res.json({ franchises, more });

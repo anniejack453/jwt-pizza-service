@@ -113,19 +113,24 @@ class DB {
     const connection = await this.getConnection();
     try {
       const params = [];
+      const values = [];
       if (password) {
         const hashedPassword = await bcrypt.hash(password, 10);
-        params.push(`password='${hashedPassword}'`);
+        params.push(`password=?`);
+        values.push(hashedPassword);
       }
       if (email) {
-        params.push(`email='${email}'`);
+        params.push(`email=?`);
+        values.push(email);
       }
       if (name) {
-        params.push(`name='${name}'`);
+        params.push(`name=?`);
+        values.push(name);
       }
       if (params.length > 0) {
-        const query = `UPDATE user SET ${params.join(", ")} WHERE id=${userId}`;
-        await this.query(connection, query);
+        const query = `UPDATE user SET ${params.join(", ")} WHERE id=?`;
+        values.push(userId);
+        await this.query(connection, query, values);
       }
       return this.getUser(email, password);
     } finally {
@@ -267,9 +272,14 @@ class DB {
     const connection = await this.getConnection();
     try {
       const offset = this.getOffset(page, config.db.listPerPage);
+      const safeOffset = Number.isInteger(offset) && offset >= 0 ? offset : 0;
+      const safePageSize =
+        Number.isInteger(config.db.listPerPage) && config.db.listPerPage > 0
+          ? config.db.listPerPage
+          : 10;
       const orders = await this.query(
         connection,
-        `SELECT id, franchiseId, storeId, date FROM dinerOrder WHERE dinerId=? LIMIT ${offset},${config.db.listPerPage}`,
+        `SELECT id, franchiseId, storeId, date FROM dinerOrder WHERE dinerId=? LIMIT ${safeOffset},${safePageSize}`,
         [user.id],
       );
       for (const order of orders) {
@@ -377,18 +387,20 @@ class DB {
     const connection = await this.getConnection();
 
     const offset = page * limit;
+    const safeOffset = Number.isInteger(offset) && offset >= 0 ? offset : 0;
+    const safeLimit = Number.isInteger(limit) && limit > 0 ? limit : 10;
     nameFilter = nameFilter.replace(/\*/g, "%");
 
     try {
       let franchises = await this.query(
         connection,
-        `SELECT id, name FROM franchise WHERE name LIKE ? LIMIT ${limit + 1} OFFSET ${offset}`,
+        `SELECT id, name FROM franchise WHERE name LIKE ? LIMIT ${safeLimit + 1} OFFSET ${safeOffset}`,
         [nameFilter],
       );
 
-      const more = franchises.length > limit;
+      const more = franchises.length > safeLimit;
       if (more) {
-        franchises = franchises.slice(0, limit);
+        franchises = franchises.slice(0, safeLimit);
       }
 
       for (const franchise of franchises) {
@@ -421,9 +433,11 @@ class DB {
       }
 
       franchiseIds = franchiseIds.map((v) => v.objectId);
+      const placeholders = franchiseIds.map(() => "?").join(",");
       const franchises = await this.query(
         connection,
-        `SELECT id, name FROM franchise WHERE id in (${franchiseIds.join(",")})`,
+        `SELECT id, name FROM franchise WHERE id in (${placeholders})`,
+        franchiseIds,
       );
       for (const franchise of franchises) {
         await this.getFranchise(franchise);
@@ -530,6 +544,15 @@ class DB {
   }
 
   async getID(connection, key, value, table) {
+    const allowedKeysByTable = {
+      franchise: new Set(["id", "name"]),
+      menu: new Set(["id"]),
+    };
+    const allowedKeys = allowedKeysByTable[table];
+    if (!allowedKeys || !allowedKeys.has(key)) {
+      throw new Error("invalid identifier");
+    }
+
     const [rows] = await connection.execute(
       `SELECT id FROM ${table} WHERE ${key}=?`,
       [value],
