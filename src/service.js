@@ -14,29 +14,12 @@ app.use(setAuthUser);
 app.use(metrics.requestTracker);
 app.use(logger.httpLogger);
 
-const configuredAllowlist = Array.isArray(config?.cors?.allowlist)
-  ? config.cors.allowlist
-  : (process.env.CORS_ALLOWLIST || "http://localhost:3000")
-      .split(",")
-      .map((origin) => origin.trim())
-      .filter(Boolean);
-const allowedOrigins = new Set(configuredAllowlist);
 app.use((req, res, next) => {
-  const origin = req.headers.origin;
-
-  if (origin && allowedOrigins.has(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-    res.setHeader("Vary", "Origin");
-  }
-
+  res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
   if (req.method === "OPTIONS") {
-    if (origin && !allowedOrigins.has(origin)) {
-      return res.sendStatus(403);
-    }
     return res.sendStatus(204);
   }
 
