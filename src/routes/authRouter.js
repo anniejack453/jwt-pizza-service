@@ -1,6 +1,5 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
-const rateLimit = require("express-rate-limit");
 const config = require("../config.js");
 const metrics = require("../metrics.js");
 const { asyncHandler } = require("../endpointHelper.js");
@@ -117,15 +116,6 @@ authRouter.put(
   "/",
   asyncHandler(async (req, res) => {
     const { email, password } = req.body;
-    const throttleKey = getThrottleKey(email, req.ip);
-    const lockExpiresAt = getLockExpiration(throttleKey);
-
-    if (lockExpiresAt && lockExpiresAt > Date.now()) {
-      metrics.recordAuthAttempt(false);
-      return res
-        .status(429)
-        .json({ message: "Too many failed login attempts. Try again later." });
-    }
 
     if (!email || !password) {
       if (!email) {
@@ -154,7 +144,6 @@ authRouter.put(
       const user = await DB.getUser(email, password);
       clearFailedAttempt(attemptKey);
       const auth = await setAuth(user);
-      failedLoginAttempts.delete(throttleKey);
       metrics.recordAuthAttempt(true);
       res.json({ user: user, token: auth });
     } catch {
