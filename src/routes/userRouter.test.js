@@ -148,9 +148,49 @@ describe("update user", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty("user");
-    expect(res.body).toHaveProperty("token");
+    expect(res.body).not.toHaveProperty("token");
     expect(res.body.user.name).toBe(updates.name);
-    expectValidJwt(res.body.token);
+  });
+
+  test("rejects empty password updates", async () => {
+    const res = await request(app)
+      .put(`/api/user/${userId}`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ email: testUser.email, password: "" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("password cannot be empty");
+  });
+
+  test("rejects duplicate email updates", async () => {
+    const uniqueEmail = `${Math.random().toString(36).substring(2, 12)}@test.com`;
+    const anotherUser = await request(app)
+      .post("/api/auth")
+      .send({
+        name: "Duplicate Email User",
+        email: uniqueEmail,
+        password: "pass",
+      });
+
+    expect(anotherUser.status).toBe(200);
+
+    const res = await request(app)
+      .put(`/api/user/${userId}`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ email: uniqueEmail, password: "newpass2" });
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toBe("Email already in use");
+  });
+
+  test("blocks admin-email takeover attempt with empty password", async () => {
+    const res = await request(app)
+      .put(`/api/user/${userId}`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ email: "admin@test.com", password: "" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("password cannot be empty");
   });
 
   test("requires authentication", async () => {

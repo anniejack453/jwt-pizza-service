@@ -87,10 +87,39 @@ class DB {
         [email],
       );
       const user = userResult[0];
+      const passwordProvided = password !== undefined;
       if (
         !user ||
-        (password && !(await bcrypt.compare(password, user.password)))
+        (passwordProvided && !(await bcrypt.compare(password, user.password)))
       ) {
+        throw new StatusCodeError("unknown user", 404);
+      }
+
+      const roleResult = await this.query(
+        connection,
+        `SELECT * FROM userRole WHERE userId=?`,
+        [user.id],
+      );
+      const roles = roleResult.map((r) => {
+        return { objectId: r.objectId || undefined, role: r.role };
+      });
+
+      return { ...user, roles: roles, password: undefined };
+    } finally {
+      connection.end();
+    }
+  }
+
+  async getUserById(userId) {
+    const connection = await this.getConnection();
+    try {
+      const userResult = await this.query(
+        connection,
+        `SELECT * FROM user WHERE id=?`,
+        [userId],
+      );
+      const user = userResult[0];
+      if (!user) {
         throw new StatusCodeError("unknown user", 404);
       }
 
@@ -114,25 +143,68 @@ class DB {
     try {
       const params = [];
       const values = [];
-      if (password) {
+
+      if (password !== undefined) {
+        if (typeof password !== "string" || password.trim().length === 0) {
+          throw new StatusCodeError("password cannot be empty", 400);
+        }
         const hashedPassword = await bcrypt.hash(password, 10);
         params.push(`password=?`);
         values.push(hashedPassword);
       }
-      if (email) {
+
+      if (email !== undefined) {
+        if (typeof email !== "string" || email.trim().length === 0) {
+          throw new StatusCodeError("email cannot be empty", 400);
+        }
+
+        const existingUser = await this.query(
+          connection,
+          `SELECT id FROM user WHERE email=?`,
+          [email],
+        );
+        if (existingUser.length > 0 && existingUser[0].id !== userId) {
+          throw new StatusCodeError("Email already in use", 409);
+        }
+
         params.push(`email=?`);
         values.push(email);
       }
-      if (name) {
+
+      if (name !== undefined) {
+        if (typeof name !== "string" || name.trim().length === 0) {
+          throw new StatusCodeError("name cannot be empty", 400);
+        }
         params.push(`name=?`);
         values.push(name);
       }
+
       if (params.length > 0) {
         const query = `UPDATE user SET ${params.join(", ")} WHERE id=?`;
         values.push(userId);
         await this.query(connection, query, values);
       }
-      return this.getUser(email, password);
+
+      const userResult = await this.query(
+        connection,
+        `SELECT * FROM user WHERE id=?`,
+        [userId],
+      );
+      const user = userResult[0];
+      if (!user) {
+        throw new StatusCodeError("unknown user", 404);
+      }
+
+      const roleResult = await this.query(
+        connection,
+        `SELECT * FROM userRole WHERE userId=?`,
+        [user.id],
+      );
+      const roles = roleResult.map((r) => {
+        return { objectId: r.objectId || undefined, role: r.role };
+      });
+
+      return { ...user, roles: roles, password: undefined };
     } finally {
       connection.end();
     }
@@ -638,6 +710,8 @@ class DB {
           await connection.query(statement);
         }
 
+        await this.ensureUserEmailUniqueIndex(connection);
+
         if (!dbExists) {
           const defaultAdmin = {
             name: "常用名字",
@@ -667,6 +741,31 @@ class DB {
       [config.db.connection.database],
     );
     return rows.length > 0;
+  }
+
+  async ensureUserEmailUniqueIndex(connection) {
+    const [existingIndexRows] = await connection.execute(
+      `SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'user' AND INDEX_NAME = 'user_email_unique'`,
+      [config.db.connection.database],
+    );
+    if (existingIndexRows.length > 0) {
+      return;
+    }
+
+    const [duplicateEmailRows] = await connection.execute(
+      `SELECT email FROM user GROUP BY email HAVING COUNT(*) > 1 LIMIT 1`,
+    );
+    if (duplicateEmailRows.length > 0) {
+      logger.log("warn", "db", {
+        message:
+          "Cannot add unique user email index because duplicate emails already exist",
+      });
+      return;
+    }
+
+    await connection.query(
+      `ALTER TABLE user ADD CONSTRAINT user_email_unique UNIQUE (email)`,
+    );
   }
 }
 
