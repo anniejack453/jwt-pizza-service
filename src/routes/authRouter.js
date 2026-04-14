@@ -60,7 +60,7 @@ async function setAuthUser(req, res, next) {
   const token = readAuthToken(req);
   if (token) {
     try {
-      if (await DB.isLoggedIn(token)) {
+      if (await DB.isLoggedIn(token, config.auth?.tokenIdleTimeoutMs)) {
         // Check the database to make sure the token is valid.
         req.user = jwt.verify(token, config.jwtSecret);
         req.user.isRole = (role) =>

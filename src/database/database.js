@@ -8,6 +8,7 @@ const logger = require("../logger.js");
 class DB {
   constructor(configParam) {
     this.config = configParam || config;
+    this.authTokenLastUsedColumnAvailable = false;
     this.initialized = this.initializeDatabase();
   }
 
@@ -305,26 +306,67 @@ class DB {
     token = this.getTokenSignature(token);
     const connection = await this.getConnection();
     try {
-      await this.query(
-        connection,
-        `INSERT INTO auth (token, userId) VALUES (?, ?) ON DUPLICATE KEY UPDATE token=token`,
-        [token, userId],
-      );
+      if (this.authTokenLastUsedColumnAvailable) {
+        await this.query(
+          connection,
+          `INSERT INTO auth (token, userId, lastUsed) VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE lastUsed=NOW()`,
+          [token, userId],
+        );
+      } else {
+        await this.query(
+          connection,
+          `INSERT INTO auth (token, userId) VALUES (?, ?) ON DUPLICATE KEY UPDATE token=token`,
+          [token, userId],
+        );
+      }
     } finally {
       connection.end();
     }
   }
 
-  async isLoggedIn(token) {
+  async isLoggedIn(token, idleTimeoutMs = 10 * 60 * 1000) {
     token = this.getTokenSignature(token);
     const connection = await this.getConnection();
     try {
+      if (!this.authTokenLastUsedColumnAvailable) {
+        const authResult = await this.query(
+          connection,
+          `SELECT userId FROM auth WHERE token=?`,
+          [token],
+        );
+        return authResult.length > 0;
+      }
+
       const authResult = await this.query(
         connection,
-        `SELECT userId FROM auth WHERE token=?`,
+        `SELECT userId, lastUsed FROM auth WHERE token=?`,
         [token],
       );
-      return authResult.length > 0;
+
+      if (authResult.length === 0) {
+        return false;
+      }
+
+      const normalizedTimeoutMs =
+        Number.isInteger(idleTimeoutMs) && idleTimeoutMs > 0
+          ? idleTimeoutMs
+          : 10 * 60 * 1000;
+      const lastUsedMs = new Date(authResult[0].lastUsed).getTime();
+      const isExpired =
+        !Number.isFinite(lastUsedMs) ||
+        Date.now() - lastUsedMs > normalizedTimeoutMs;
+
+      if (isExpired) {
+        await this.query(connection, `DELETE FROM auth WHERE token=?`, [token]);
+        return false;
+      }
+
+      await this.query(
+        connection,
+        `UPDATE auth SET lastUsed=NOW() WHERE token=?`,
+        [token],
+      );
+      return true;
     } finally {
       connection.end();
     }
@@ -710,6 +752,8 @@ class DB {
           await connection.query(statement);
         }
 
+        await this.ensureAuthTokenLastUsedColumn(connection);
+
         await this.ensureUserEmailUniqueIndex(connection);
 
         if (!dbExists) {
@@ -766,6 +810,21 @@ class DB {
     await connection.query(
       `ALTER TABLE user ADD CONSTRAINT user_email_unique UNIQUE (email)`,
     );
+  }
+
+  async ensureAuthTokenLastUsedColumn(connection) {
+    const [existingColumnRows] = await connection.execute(
+      `SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'auth' AND COLUMN_NAME = 'lastUsed'`,
+      [config.db.connection.database],
+    );
+
+    if (existingColumnRows.length === 0) {
+      await connection.query(
+        `ALTER TABLE auth ADD COLUMN lastUsed DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+      );
+    }
+
+    this.authTokenLastUsedColumnAvailable = true;
   }
 }
 

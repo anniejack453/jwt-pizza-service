@@ -243,6 +243,30 @@ describe("logout", () => {
 
     expect(protectedRes.status).toBe(401);
   });
+
+  test("token expires after inactivity timeout", async () => {
+    const loginRes = await request(app)
+      .put("/api/auth")
+      .send({ email: "diner@test.com", password: "diner123" });
+    const token = loginRes.body.token;
+    const tokenSignature = DB.getTokenSignature(token);
+
+    const connection = await DB.getConnection();
+    try {
+      await connection.query(
+        `UPDATE auth SET lastUsed = DATE_SUB(NOW(), INTERVAL 11 MINUTE) WHERE token = ?`,
+        [tokenSignature],
+      );
+    } finally {
+      connection.end();
+    }
+
+    const protectedRes = await request(app)
+      .get("/api/user/me")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(protectedRes.status).toBe(401);
+  });
 });
 
 function expectValidJwt(potentialJwt) {
